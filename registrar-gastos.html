@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Registrar Gastos</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600&family=Tinos:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="template/components.css">
+  <link rel="stylesheet" href="template/layout.css">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <style>
+    body { background: #fffaf7; font-family: 'Tinos', serif; }
+    .logo { font-family: 'Cormorant Garamond', serif; font-size: 2rem; color: #e63946; margin-bottom: 24px; display: inline-block; }
+    main { background: #fff; border-radius: 18px; box-shadow: 0 2px 16px #ffd6e0; margin-top: 32px; padding: 32px 16px; max-width: 900px; }
+    .gastos-grid { display: flex; flex-wrap: wrap; gap: 24px; margin-top: 24px; }
+    .gasto-card { background: #fff7e6; border-radius: 16px; box-shadow: 0 2px 8px #ffd6e0; padding: 24px 18px 18px 18px; min-width: 220px; flex: 1 1 260px; position: relative; }
+    .gasto-card h3 { color: #e63946; font-size: 1.2em; margin-bottom: 12px; }
+    .add-btn { position: absolute; top: 16px; right: 16px; background: #e63946; color: #fff; border: none; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 1.3em; box-shadow: 0 2px 8px #ffd6e0; }
+    .add-btn svg { width: 18px; height: 18px; }
+    .custom-cat-btn { background: #b5ead7; color: #222; border: none; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer; position: absolute; top: 16px; right: 16px; }
+    .enlace-analisis { color: #e63946; text-decoration: underline; cursor: pointer; font-weight: 600; }
+    .enlace-analisis:hover { color: #b42318; }
+  </style>
+</head>
+<body>
+  <!-- ================= HEADER GLOBAL ================= -->
+  <header class="main-header">
+    <!-- Botón menú (abre sidebar) -->
+    <button id="toggleSidebar" class="icon-btn" aria-label="Abrir menú">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="3" y1="6" x2="21" y2="6"></line>
+        <line x1="3" y1="12" x2="21" y2="12"></line>
+        <line x1="3" y1="18" x2="21" y2="18"></line>
+      </svg>
+    </button>
+    <a href="index.html" class="logo" style="text-decoration:none;color:inherit;cursor:pointer;">Flexiway</a>
+    <div class="header-actions">
+      <button id="notificationBtn" class="icon-btn" aria-label="Notificaciones">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M18 8a6 6 0 10-12 0c0 7-3 7-3 7h18s-3 0-3-7"></path>
+          <path d="M13.73 21a2 2 0 01-3.46 0"></path>
+        </svg>
+      </button>
+      <button class="icon-btn" aria-label="Perfil" id="profileBtn">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="7" r="4"></circle>
+          <path d="M5.5 21a8.38 8.38 0 0113 0"></path>
+        </svg>
+      </button>
+    </div>
+  </header>
+  <main>
+    <h2>Registrar Gastos</h2>
+    <p>Registra tus tarjetas, préstamos, servicios, deudas y más. <span class="enlace-analisis" onclick="window.location.href='analysis.html'">Ver análisis</span></p>
+    <button class="add-btn" style="margin-bottom:18px;background:#38b000;" onclick="agregarIngreso()">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Registrar ingreso
+    </button>
+    <div id="ingresos-lista"></div>
+    <div class="gastos-grid">
+    <script>
+    // --- INGRESOS ---
+    function getIngresos() {
+      return JSON.parse(localStorage.getItem('ingresos')||'[]');
+    }
+    function setIngresos(arr) {
+      localStorage.setItem('ingresos', JSON.stringify(arr));
+    }
+    function renderIngresos() {
+      const lista = document.getElementById('ingresos-lista');
+      const ingresos = getIngresos();
+      if (!lista) return;
+      lista.innerHTML = '<h3 style="color:#38b000;margin-bottom:8px;">Ingresos registrados</h3>';
+      if (ingresos.length === 0) {
+        lista.innerHTML += '<p style="color:#888">No hay ingresos registrados.</p>';
+        return;
+      }
+      ingresos.forEach((ing, i) => {
+        const div = document.createElement('div');
+        div.style = 'background:#e9f7ef;border-radius:10px;padding:10px 10px 10px 18px;margin-bottom:8px;box-shadow:0 1px 4px #b5ead7;position:relative;';
+        div.innerHTML = '<strong>' + (ing.descripcion||'Ingreso') + '</strong> - $' + ing.monto.toLocaleString() + ' (' + ing.fecha + ')' +
+          '<button onclick="eliminarIngreso(' + i + ')" title="Eliminar" style="position:absolute;top:8px;right:8px;background:none;border:none;cursor:pointer;color:#38b000;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#38b000" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>';
+        lista.appendChild(div);
+      });
+    }
+    function agregarIngreso() {
+      // Obtener fecha actual en formato yyyy-MM-dd
+      const now = new Date();
+      const yyyy = now.getFullYear();
+      const mm = String(now.getMonth()+1).padStart(2,'0');
+      const dd = String(now.getDate()).padStart(2,'0');
+      const hoy = `${yyyy}-${mm}-${dd}`;
+      Swal.fire({
+        title: 'Registrar ingreso',
+        html: `
+          <input id='desc-ingreso' class='swal2-input' placeholder='Descripción (ej: Sueldo, venta, etc.)'>
+          <input id='monto-ingreso' class='swal2-input' type='number' min='0' placeholder='Monto'>
+          <input id='fecha-ingreso' class='swal2-input' type='date' value='${hoy}'>
+        `,
+        confirmButtonText: 'Guardar',
+        showCancelButton: true,
+        preConfirm: () => {
+          const descripcion = document.getElementById('desc-ingreso').value.trim();
+          const monto = Number(document.getElementById('monto-ingreso').value);
+          const fecha = document.getElementById('fecha-ingreso').value;
+          if (isNaN(monto) || !fecha) {
+            Swal.showValidationMessage('Completa todos los campos correctamente');
+            return false;
+          }
+          return { descripcion, monto, fecha };
+        }
+      }).then(res => {
+        if (res.isConfirmed && res.value) {
+          const ingresos = getIngresos();
+          ingresos.push(res.value);
+          setIngresos(ingresos);
+          renderIngresos();
+        }
+      });
+    }
+    function eliminarIngreso(idx) {
+      Swal.fire({
+        title: '¿Eliminar ingreso?',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, eliminar',
+        cancelButtonText: 'Cancelar'
+      }).then(res => {
+        if (res.isConfirmed) {
+          const ingresos = getIngresos();
+          ingresos.splice(idx, 1);
+          setIngresos(ingresos);
+          renderIngresos();
+        }
+      });
+    }
+    document.addEventListener('DOMContentLoaded', renderIngresos);
+    </script>
+      <div class="gasto-card" id="tarjetas-card">
+        <h3>Tarjetas de crédito
+          <button class="add-btn" title="Agregar tarjeta" onclick="agregarTarjeta()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
+        </h3>
+        <div id="tarjetas-lista"></div>
+      </div>
+      <div class="gasto-card" id="prestamos-card">
+        <h3>Préstamos
+          <button class="add-btn" title="Agregar préstamo" onclick="agregarPrestamo()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
+        </h3>
+        <div id="prestamos-lista"></div>
+      </div>
+      <div class="gasto-card" id="servicios-card">
+        <h3>Servicios
+          <button class="add-btn" title="Agregar servicio" onclick="agregarServicio()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
+        </h3>
+        <div id="servicios-lista"></div>
+      </div>
+      <div class="gasto-card" id="deudas-card">
+        <h3>Otras deudas
+          <button class="add-btn" title="Agregar deuda" onclick="agregarDeuda()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
+        </h3>
+        <div id="deudas-lista"></div>
+      </div>
+      <div class="gasto-card" id="custom-cat-card">
+        <h3>Categorías personalizadas
+          <button class="custom-cat-btn" title="Agregar categoría" onclick="agregarCategoria()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#38b000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
+        </h3>
+        <div id="custom-cat-lista"></div>
+      </div>
+    </div>
+  </main>
+  <script>
+    // --- Tarjetas de crédito ---
+    renderIngresos();
+    function getTarjetas() {
+      return JSON.parse(localStorage.getItem('tarjetasCredito')||'[]');
+    }
+    function setTarjetas(arr) {
+      localStorage.setItem('tarjetasCredito', JSON.stringify(arr));
+    }
+    function renderTarjetas() {
+      const lista = document.getElementById('tarjetas-lista');
+      const tarjetas = getTarjetas();
+      if (!lista) return;
+      lista.innerHTML = '';
+      if (tarjetas.length === 0) {
+        lista.innerHTML = '<p style="color:#888">No hay tarjetas registradas.</p>';
+        return;
+      }
+      tarjetas.forEach((t, i) => {
+        const div = document.createElement('div');
+        div.style = 'background:#fff;border-radius:10px;padding:12px 10px;margin-bottom:10px;box-shadow:0 1px 4px #ffd6e0;position:relative;';
+        div.innerHTML = `
+          <strong>${t.nombre}</strong><br>
+          Monto actual: $${t.monto.toLocaleString()}<br>
+          Fecha de corte: ${t.fechaCorte}<br>
+          Tasa interés: ${t.tasa}% anual
+          <button onclick="editarTarjeta(${i})" title="Editar" style="position:absolute;top:8px;right:38px;background:none;border:none;cursor:pointer;color:#e63946;"><svg width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='#e63946' stroke-width='2'><path d='M12 20h9'/><path d='M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z'/></svg></button>
+          <button onclick="eliminarTarjeta(${i})" title="Eliminar" style="position:absolute;top:8px;right:8px;background:none;border:none;cursor:pointer;color:#e63946;"><svg width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='#e63946' stroke-width='2'><line x1='18' y1='6' x2='6' y2='18'/><line x1='6' y1='6' x2='18' y2='18'/></svg></button>
+        `;
+        lista.appendChild(div);
+      });
+    }
+    function agregarTarjeta() {
+      Swal.fire({
+        title: 'Agregar tarjeta',
+        html: `
+          <input id='nombre-tarjeta' class='swal2-input' placeholder='Nombre (ej: Visa Azul)'>
+          <input id='monto-tarjeta' class='swal2-input' type='number' min='0' placeholder='Monto actual'>
+          <input id='fecha-corte-tarjeta' class='swal2-input' type='date' placeholder='Fecha de corte'>
+          <input id='tasa-tarjeta' class='swal2-input' type='number' min='0' step='0.01' placeholder='Tasa de interés anual (%)'>
+        `,
+        confirmButtonText: 'Guardar',
+        showCancelButton: true,
+        preConfirm: () => {
+          const nombre = document.getElementById('nombre-tarjeta').value.trim();
+          const monto = Number(document.getElementById('monto-tarjeta').value);
+          const fechaCorte = document.getElementById('fecha-corte-tarjeta').value;
+          const tasa = Number(document.getElementById('tasa-tarjeta').value);
+          if (!nombre || isNaN(monto) || !fechaCorte || isNaN(tasa)) {
+            Swal.showValidationMessage('Completa todos los campos correctamente');
+            return false;
+          }
+          return { nombre, monto, fechaCorte, tasa };
+        }
+      }).then(res => {
+        if (res.isConfirmed && res.value) {
+          const tarjetas = getTarjetas();
+          tarjetas.push(res.value);
+          setTarjetas(tarjetas);
+          renderTarjetas();
+        }
+      });
+    }
+    function editarTarjeta(idx) {
+      const tarjetas = getTarjetas();
+      const t = tarjetas[idx];
+      Swal.fire({
+        title: 'Editar tarjeta',
+        html: `
+          <input id='nombre-tarjeta' class='swal2-input' value='${t.nombre}' placeholder='Nombre'>
+          <input id='monto-tarjeta' class='swal2-input' type='number' min='0' value='${t.monto}' placeholder='Monto actual'>
+          <input id='fecha-corte-tarjeta' class='swal2-input' type='date' value='${t.fechaCorte}' placeholder='Fecha de corte'>
+          <input id='tasa-tarjeta' class='swal2-input' type='number' min='0' step='0.01' value='${t.tasa}' placeholder='Tasa de interés anual (%)'>
+        `,
+        confirmButtonText: 'Guardar',
+        showCancelButton: true,
+        preConfirm: () => {
+          const nombre = document.getElementById('nombre-tarjeta').value.trim();
+          const monto = Number(document.getElementById('monto-tarjeta').value);
+          const fechaCorte = document.getElementById('fecha-corte-tarjeta').value;
+          const tasa = Number(document.getElementById('tasa-tarjeta').value);
+          if (!nombre || isNaN(monto) || !fechaCorte || isNaN(tasa)) {
+            Swal.showValidationMessage('Completa todos los campos correctamente');
+            return false;
+          }
+          return { nombre, monto, fechaCorte, tasa };
+        }
+      }).then(res => {
+        if (res.isConfirmed && res.value) {
+          tarjetas[idx] = res.value;
+          setTarjetas(tarjetas);
+          renderTarjetas();
+        }
+      });
+    }
+    function eliminarTarjeta(idx) {
+      Swal.fire({
+        title: '¿Eliminar tarjeta?',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, eliminar',
+        cancelButtonText: 'Cancelar'
+      }).then(res => {
+        if (res.isConfirmed) {
+          const tarjetas = getTarjetas();
+          tarjetas.splice(idx, 1);
+          setTarjetas(tarjetas);
+          renderTarjetas();
+        }
+      });
+    }
+    // --- Préstamos ---
+    function getPrestamos() {
+      return JSON.parse(localStorage.getItem('prestamos')||'[]');
+    }
+    function setPrestamos(arr) {
+      localStorage.setItem('prestamos', JSON.stringify(arr));
+    }
+    function renderPrestamos() {
+      const lista = document.getElementById('prestamos-lista');
+      const prestamos = getPrestamos();
+      if (!lista) return;
+      lista.innerHTML = '';
+      if (prestamos.length === 0) {
+        lista.innerHTML = '<p style="color:#888">No hay préstamos registrados.</p>';
+        return;
+      }
+      prestamos.forEach((p, i) => {
+        const div = document.createElement('div');
+        div.style = 'background:#fff;border-radius:10px;padding:12px 10px;margin-bottom:10px;box-shadow:0 1px 4px #ffd6e0;position:relative;';
+        div.innerHTML = `
+          <strong>${p.nombre}</strong><br>
+          Monto actual: $${p.monto.toLocaleString()}<br>
+          Fecha de pago: ${p.fechaPago}<br>
+          Tasa interés: ${p.tasa}% anual
+          <button onclick="editarPrestamo(${i})" title="Editar" style="position:absolute;top:8px;right:38px;background:none;border:none;cursor:pointer;color:#e63946;"><svg width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='#e63946' stroke-width='2'><path d='M12 20h9'/><path d='M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z'/></svg></button>
+          <button onclick="eliminarPrestamo(${i})" title="Eliminar" style="position:absolute;top:8px;right:8px;background:none;border:none;cursor:pointer;color:#e63946;"><svg width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='#e63946' stroke-width='2'><line x1='18' y1='6' x2='6' y2='18'/><line x1='6' y1='6' x2='18' y2='18'/></svg></button>
+        `;
+        lista.appendChild(div);
+      });
+    }
+    function agregarPrestamo() {
+      Swal.fire({
+        title: 'Agregar préstamo',
+        html: `
+          <input id='nombre-prestamo' class='swal2-input' placeholder='Nombre (ej: Préstamo Auto)'>
+          <input id='monto-prestamo' class='swal2-input' type='number' min='0' placeholder='Monto actual'>
+          <input id='fecha-pago-prestamo' class='swal2-input' type='date' placeholder='Fecha de pago'>
+          <input id='tasa-prestamo' class='swal2-input' type='number' min='0' step='0.01' placeholder='Tasa de interés anual (%)'>
+        `,
+        confirmButtonText: 'Guardar',
+        showCancelButton: true,
+        preConfirm: () => {
+          const nombre = document.getElementById('nombre-prestamo').value.trim();
+          const monto = Number(document.getElementById('monto-prestamo').value);
+          const fechaPago = document.getElementById('fecha-pago-prestamo').value;
+          const tasa = Number(document.getElementById('tasa-prestamo').value);
+          if (!nombre || isNaN(monto) || !fechaPago || isNaN(tasa)) {
+            Swal.showValidationMessage('Completa todos los campos correctamente');
+            return false;
+          }
+          return { nombre, monto, fechaPago, tasa };
+        }
+      }).then(res => {
+        if (res.isConfirmed && res.value) {
+          const prestamos = getPrestamos();
+          prestamos.push(res.value);
+          setPrestamos(prestamos);
+          renderPrestamos();
+        }
+      });
+    }
+    function editarPrestamo(idx) {
+      const prestamos = getPrestamos();
+      const p = prestamos[idx];
+      Swal.fire({
+        title: 'Editar préstamo',
+        html: `
+          <input id='nombre-prestamo' class='swal2-input' value='${p.nombre}' placeholder='Nombre'>
+          <input id='monto-prestamo' class='swal2-input' type='number' min='0' value='${p.monto}' placeholder='Monto actual'>
+          <input id='fecha-pago-prestamo' class='swal2-input' type='date' value='${p.fechaPago}' placeholder='Fecha de pago'>
+          <input id='tasa-prestamo' class='swal2-input' type='number' min='0' step='0.01' value='${p.tasa}' placeholder='Tasa de interés anual (%)'>
+        `,
+        confirmButtonText: 'Guardar',
+        showCancelButton: true,
+        preConfirm: () => {
+          const nombre = document.getElementById('nombre-prestamo').value.trim();
+          const monto = Number(document.getElementById('monto-prestamo').value);
+          const fechaPago = document.getElementById('fecha-pago-prestamo').value;
+          const tasa = Number(document.getElementById('tasa-prestamo').value);
+          if (!nombre || isNaN(monto) || !fechaPago || isNaN(tasa)) {
+            Swal.showValidationMessage('Completa todos los campos correctamente');
+            return false;
+          }
+          return { nombre, monto, fechaPago, tasa };
+        }
+      }).then(res => {
+        if (res.isConfirmed && res.value) {
+          prestamos[idx] = res.value;
+          setPrestamos(prestamos);
+          renderPrestamos();
+        }
+      });
+    }
+    function eliminarPrestamo(idx) {
+      Swal.fire({
+        title: '¿Eliminar préstamo?',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, eliminar',
+        cancelButtonText: 'Cancelar'
+      }).then(res => {
+        if (res.isConfirmed) {
+          const prestamos = getPrestamos();
+          prestamos.splice(idx, 1);
+          setPrestamos(prestamos);
+          renderPrestamos();
+        }
+      });
+    }
+
+    // --- Servicios ---
+    function getServicios() {
+      return JSON.parse(localStorage.getItem('servicios')||'[]');
+    }
+    function setServicios(arr) {
+      localStorage.setItem('servicios', JSON.stringify(arr));
+    }
+    function renderServicios() {
+      const lista = document.getElementById('servicios-lista');
+      const servicios = getServicios();
+      if (!lista) return;
+      lista.innerHTML = '';
+      if (servicios.length === 0) {
+        lista.innerHTML = '<p style="color:#888">No hay servicios registrados.</p>';
+        return;
+      }
+      servicios.forEach((s, i) => {
+        const div = document.createElement('div');
+        div.style = 'background:#fff;border-radius:10px;padding:12px 10px;margin-bottom:10px;box-shadow:0 1px 4px #ffd6e0;position:relative;';
+        div.innerHTML = `
+          <strong>${s.nombre}</strong><br>
+          Monto mensual: $${s.monto.toLocaleString()}<br>
+          Fecha de pago: ${s.fechaPago}
+          <button onclick="editarServicio(${i})" title="Editar" style="position:absolute;top:8px;right:38px;background:none;border:none;cursor:pointer;color:#e63946;"><svg width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='#e63946' stroke-width='2'><path d='M12 20h9'/><path d='M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z'/></svg></button>
+          <button onclick="eliminarServicio(${i})" title="Eliminar" style="position:absolute;top:8px;right:8px;background:none;border:none;cursor:pointer;color:#e63946;"><svg width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='#e63946' stroke-width='2'><line x1='18' y1='6' x2='6' y2='18'/><line x1='6' y1='6' x2='18' y2='18'/></svg></button>
+        `;
+        lista.appendChild(div);
+      });
+    }
+    function agregarServicio() {
+      Swal.fire({
+        title: 'Agregar servicio',
+        html: `
+          <input id='nombre-servicio' class='swal2-input' placeholder='Nombre (ej: Alquiler)'>
+          <input id='monto-servicio' class='swal2-input' type='number' min='0' placeholder='Monto mensual'>
+          <input id='fecha-pago-servicio' class='swal2-input' type='date' placeholder='Fecha de pago'>
+        `,
+        confirmButtonText: 'Guardar',
+        showCancelButton: true,
+        preConfirm: () => {
+          const nombre = document.getElementById('nombre-servicio').value.trim();
+          const monto = Number(document.getElementById('monto-servicio').value);
+          const fechaPago = document.getElementById('fecha-pago-servicio').value;
+          if (!nombre || isNaN(monto) || !fechaPago) {
+            Swal.showValidationMessage('Completa todos los campos correctamente');
+            return false;
+          }
+          return { nombre, monto, fechaPago };
+        }
+      }).then(res => {
+        if (res.isConfirmed && res.value) {
+          const servicios = getServicios();
+          servicios.push(res.value);
+          setServicios(servicios);
+          renderServicios();
+        }
+      });
+    }
+    function editarServicio(idx) {
+      const servicios = getServicios();
+      const s = servicios[idx];
+      Swal.fire({
+        title: 'Editar servicio',
+        html: `
+          <input id='nombre-servicio' class='swal2-input' value='${s.nombre}' placeholder='Nombre'>
+          <input id='monto-servicio' class='swal2-input' type='number' min='0' value='${s.monto}' placeholder='Monto mensual'>
+          <input id='fecha-pago-servicio' class='swal2-input' type='date' value='${s.fechaPago}' placeholder='Fecha de pago'>
+        `,
+        confirmButtonText: 'Guardar',
+        showCancelButton: true,
+        preConfirm: () => {
+          const nombre = document.getElementById('nombre-servicio').value.trim();
+          const monto = Number(document.getElementById('monto-servicio').value);
+          const fechaPago = document.getElementById('fecha-pago-servicio').value;
+          if (!nombre || isNaN(monto) || !fechaPago) {
+            Swal.showValidationMessage('Completa todos los campos correctamente');
+            return false;
+          }
+          return { nombre, monto, fechaPago };
+        }
+      }).then(res => {
+        if (res.isConfirmed && res.value) {
+          servicios[idx] = res.value;
+          setServicios(servicios);
+          renderServicios();
+        }
+      });
+    }
+    function eliminarServicio(idx) {
+      Swal.fire({
+        title: '¿Eliminar servicio?',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, eliminar',
+        cancelButtonText: 'Cancelar'
+      }).then(res => {
+        if (res.isConfirmed) {
+          const servicios = getServicios();
+          servicios.splice(idx, 1);
+          setServicios(servicios);
+          renderServicios();
+        }
+      });
+    }
+
+    // --- Deudas ---
+    function getDeudas() {
+      return JSON.parse(localStorage.getItem('deudas')||'[]');
+    }
+    function setDeudas(arr) {
+      localStorage.setItem('deudas', JSON.stringify(arr));
+    }
+    function renderDeudas() {
+      const lista = document.getElementById('deudas-lista');
+      const deudas = getDeudas();
+      if (!lista) return;
+      lista.innerHTML = '';
+      if (deudas.length === 0) {
+        lista.innerHTML = '<p style="color:#888">No hay deudas registradas.</p>';
+        return;
+      }
+      deudas.forEach((d, i) => {
+        const div = document.createElement('div');
+        div.style = 'background:#fff;border-radius:10px;padding:12px 10px;margin-bottom:10px;box-shadow:0 1px 4px #ffd6e0;position:relative;';
+        div.innerHTML = `
+          <strong>${d.nombre}</strong><br>
+          Monto actual: $${d.monto.toLocaleString()}<br>
+          Fecha de pago: ${d.fechaPago}<br>
+          Tasa interés: ${d.tasa ? d.tasa + '%' : 'N/A'}
+          <button onclick="editarDeuda(${i})" title="Editar" style="position:absolute;top:8px;right:38px;background:none;border:none;cursor:pointer;color:#e63946;"><svg width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='#e63946' stroke-width='2'><path d='M12 20h9'/><path d='M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z'/></svg></button>
+          <button onclick="eliminarDeuda(${i})" title="Eliminar" style="position:absolute;top:8px;right:8px;background:none;border:none;cursor:pointer;color:#e63946;"><svg width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='#e63946' stroke-width='2'><line x1='18' y1='6' x2='6' y2='18'/><line x1='6' y1='6' x2='18' y2='18'/></svg></button>
+        `;
+        lista.appendChild(div);
+      });
+    }
+    function agregarDeuda() {
+      Swal.fire({
+        title: 'Agregar deuda',
+        html: `
+          <input id='nombre-deuda' class='swal2-input' placeholder='Nombre (ej: Deuda personal)'>
+          <input id='monto-deuda' class='swal2-input' type='number' min='0' placeholder='Monto actual'>
+          <input id='fecha-pago-deuda' class='swal2-input' type='date' placeholder='Fecha de pago'>
+          <input id='tasa-deuda' class='swal2-input' type='number' min='0' step='0.01' placeholder='Tasa de interés anual (%) (opcional)'>
+        `,
+        confirmButtonText: 'Guardar',
+        showCancelButton: true,
+        preConfirm: () => {
+          const nombre = document.getElementById('nombre-deuda').value.trim();
+          const monto = Number(document.getElementById('monto-deuda').value);
+          const fechaPago = document.getElementById('fecha-pago-deuda').value;
+          const tasa = document.getElementById('tasa-deuda').value;
+          if (!nombre || isNaN(monto) || !fechaPago) {
+            Swal.showValidationMessage('Completa todos los campos correctamente');
+            return false;
+          }
+          return { nombre, monto, fechaPago, tasa: tasa ? Number(tasa) : null };
+        }
+      }).then(res => {
+        if (res.isConfirmed && res.value) {
+          const deudas = getDeudas();
+          deudas.push(res.value);
+          setDeudas(deudas);
+          renderDeudas();
+        }
+      });
+    }
+    function editarDeuda(idx) {
+      const deudas = getDeudas();
+      const d = deudas[idx];
+      Swal.fire({
+        title: 'Editar deuda',
+        html: `
+          <input id='nombre-deuda' class='swal2-input' value='${d.nombre}' placeholder='Nombre'>
+          <input id='monto-deuda' class='swal2-input' type='number' min='0' value='${d.monto}' placeholder='Monto actual'>
+          <input id='fecha-pago-deuda' class='swal2-input' type='date' value='${d.fechaPago}' placeholder='Fecha de pago'>
+          <input id='tasa-deuda' class='swal2-input' type='number' min='0' step='0.01' value='${d.tasa || ''}' placeholder='Tasa de interés anual (%) (opcional)'>
+        `,
+        confirmButtonText: 'Guardar',
+        showCancelButton: true,
+        preConfirm: () => {
+          const nombre = document.getElementById('nombre-deuda').value.trim();
+          const monto = Number(document.getElementById('monto-deuda').value);
+          const fechaPago = document.getElementById('fecha-pago-deuda').value;
+          const tasa = document.getElementById('tasa-deuda').value;
+          if (!nombre || isNaN(monto) || !fechaPago) {
+            Swal.showValidationMessage('Completa todos los campos correctamente');
+            return false;
+          }
+          return { nombre, monto, fechaPago, tasa: tasa ? Number(tasa) : null };
+        }
+      }).then(res => {
+        if (res.isConfirmed && res.value) {
+          deudas[idx] = res.value;
+          setDeudas(deudas);
+          renderDeudas();
+        }
+      });
+    }
+    function eliminarDeuda(idx) {
+      Swal.fire({
+        title: '¿Eliminar deuda?',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, eliminar',
+        cancelButtonText: 'Cancelar'
+      }).then(res => {
+        if (res.isConfirmed) {
+          const deudas = getDeudas();
+          deudas.splice(idx, 1);
+          setDeudas(deudas);
+          renderDeudas();
+        }
+      });
+    }
+
+    // --- Categorías personalizadas ---
+    function getCustomCats() {
+      return JSON.parse(localStorage.getItem('customCats')||'[]');
+    }
+    function setCustomCats(arr) {
+      localStorage.setItem('customCats', JSON.stringify(arr));
+    }
+    function renderCustomCats() {
+      const lista = document.getElementById('custom-cat-lista');
+      const cats = getCustomCats();
+      if (!lista) return;
+      lista.innerHTML = '';
+      if (cats.length === 0) {
+        lista.innerHTML = '<p style="color:#888">No hay categorías personalizadas.</p>';
+        return;
+      }
+      cats.forEach((c, i) => {
+        const div = document.createElement('div');
+        div.style = 'background:#fff;border-radius:10px;padding:12px 10px;margin-bottom:10px;box-shadow:0 1px 4px #ffd6e0;position:relative;';
+        div.innerHTML = `
+          <strong>${c.nombre}</strong><br>
+          Monto: $${c.monto.toLocaleString()}<br>
+          <button onclick="editarCategoria(${i})" title="Editar" style="position:absolute;top:8px;right:38px;background:none;border:none;cursor:pointer;color:#38b000;"><svg width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='#38b000' stroke-width='2'><path d='M12 20h9'/><path d='M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z'/></svg></button>
+          <button onclick="eliminarCategoria(${i})" title="Eliminar" style="position:absolute;top:8px;right:8px;background:none;border:none;cursor:pointer;color:#38b000;"><svg width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='#38b000' stroke-width='2'><line x1='18' y1='6' x2='6' y2='18'/><line x1='6' y1='6' x2='18' y2='18'/></svg></button>
+        `;
+        lista.appendChild(div);
+      });
+    }
+    function agregarCategoria() {
+      Swal.fire({
+        title: 'Agregar categoría personalizada',
+        html: `
+          <input id='nombre-cat' class='swal2-input' placeholder='Nombre de la categoría'>
+          <input id='monto-cat' class='swal2-input' type='number' min='0' placeholder='Monto'>
+        `,
+        confirmButtonText: 'Guardar',
+        showCancelButton: true,
+        preConfirm: () => {
+          const nombre = document.getElementById('nombre-cat').value.trim();
+          const monto = Number(document.getElementById('monto-cat').value);
+          if (!nombre || isNaN(monto)) {
+            Swal.showValidationMessage('Completa todos los campos correctamente');
+            return false;
+          }
+          return { nombre, monto };
+        }
+      }).then(res => {
+        if (res.isConfirmed && res.value) {
+          const cats = getCustomCats();
+          cats.push(res.value);
+          setCustomCats(cats);
+          renderCustomCats();
+        }
+      });
+    }
+    function editarCategoria(idx) {
+      const cats = getCustomCats();
+      const c = cats[idx];
+      Swal.fire({
+        title: 'Editar categoría personalizada',
+        html: `
+          <input id='nombre-cat' class='swal2-input' value='${c.nombre}' placeholder='Nombre de la categoría'>
+          <input id='monto-cat' class='swal2-input' type='number' min='0' value='${c.monto}' placeholder='Monto'>
+        `,
+        confirmButtonText: 'Guardar',
+        showCancelButton: true,
+        preConfirm: () => {
+          const nombre = document.getElementById('nombre-cat').value.trim();
+          const monto = Number(document.getElementById('monto-cat').value);
+          if (!nombre || isNaN(monto)) {
+            Swal.showValidationMessage('Completa todos los campos correctamente');
+            return false;
+          }
+          return { nombre, monto };
+        }
+      }).then(res => {
+        if (res.isConfirmed && res.value) {
+          cats[idx] = res.value;
+          setCustomCats(cats);
+          renderCustomCats();
+        }
+      });
+    }
+    function eliminarCategoria(idx) {
+      Swal.fire({
+        title: '¿Eliminar categoría?',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, eliminar',
+        cancelButtonText: 'Cancelar'
+      }).then(res => {
+        if (res.isConfirmed) {
+          const cats = getCustomCats();
+          cats.splice(idx, 1);
+          setCustomCats(cats);
+          renderCustomCats();
+        }
+      });
+    }
+
+    // Render inicial de todas las categorías
+    renderTarjetas();
+    renderPrestamos();
+    renderServicios();
+    renderDeudas();
+    renderCustomCats();
+  </script>
+</body>
+</html>

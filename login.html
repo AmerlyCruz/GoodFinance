@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600&family=Tinos:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="template/components.css">
+  <link rel="stylesheet" href="template/layout.css">
+  <style>
+    body { background: #fffaf7; font-family: 'Tinos', serif; }
+    .logo { font-family: 'Cormorant Garamond', serif; font-size: 2rem; color: #e63946; margin-bottom: 24px; display: inline-block; }
+    main { background: #fff; border-radius: 18px; box-shadow: 0 2px 16px #ffd6e0; margin-top: 32px; }
+    form { margin-top: 24px; }
+    label { color: #1c2b3a; font-size: 15px; }
+    input { border: 1px solid #ffd6e0; border-radius: 8px; padding: 8px; margin-top: 4px; }
+    button[type="submit"] { background: #e63946; color: #fff; border-radius: 8px; border: none; margin-top: 12px; font-weight: 600; }
+    button[type="submit"]:hover { background: #b42318; }
+  </style>
+</head>
+<body>
+  <header class="main-header">
+    <button onclick="history.back()" class="icon-btn" aria-label="Volver">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#e63946" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+    </button>
+    <a href="index.html" class="logo" style="text-decoration:none;color:inherit;cursor:pointer;">Flexiway</a>
+    <div class="header-actions">
+      <button id="notificationBtn" class="icon-btn" aria-label="Notificaciones">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M18 8a6 6 0 10-12 0c0 7-3 7-3 7h18s-3 0-3-7"></path>
+          <path d="M13.73 21a2 2 0 01-3.46 0"></path>
+        </svg>
+      </button>
+      <button class="icon-btn" aria-label="Perfil" id="profileBtn">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="7" r="4"></circle>
+          <path d="M5.5 21a8.38 8.38 0 0113 0"></path>
+        </svg>
+      </button>
+    </div>
+  </header>
+  <main style="padding:24px;max-width:500px;margin:auto;">
+    <a href="index.html" class="logo" style="text-decoration:none;color:inherit;cursor:pointer;font-size:2rem;">Flexiway</a>
+    <h2>Iniciar sesión</h2>
+    <form style="display:flex;flex-direction:column;gap:12px;">
+      <label>Email<input type="email" required></label>
+      <label>Contraseña<input type="password" required></label>
+      <button type="submit" style="background:#e63946;color:#fff;padding:10px 0;border:none;border-radius:8px;font-weight:600;">Entrar</button>
+    </form>
+  </main>
+</body>
+</html>

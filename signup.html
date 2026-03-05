@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Crear cuenta</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600&family=Tinos:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="template/components.css">
+  <link rel="stylesheet" href="template/layout.css">
+  <style>
+    body { background: #fffaf7; font-family: 'Tinos', serif; }
+    .logo { font-family: 'Cormorant Garamond', serif; font-size: 2rem; color: #e63946; margin-bottom: 24px; display: inline-block; }
+    main { background: #fff; border-radius: 18px; box-shadow: 0 2px 16px #ffd6e0; margin-top: 32px; }
+    form { margin-top: 24px; }
+    label { color: #1c2b3a; font-size: 15px; }
+    input { border: 1px solid #ffd6e0; border-radius: 8px; padding: 8px; margin-top: 4px; }
+    button[type="submit"] { background: #e63946; color: #fff; border-radius: 8px; border: none; margin-top: 12px; font-weight: 600; }
+    button[type="submit"]:hover { background: #b42318; }
+  </style>
+</head>
+<body>
+  <button onclick="history.back()" aria-label="Volver" style="margin:16px 0 0 16px;padding:8px;border:none;background:#ffd6e0;color:#e63946;border-radius:50%;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#e63946" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+  </button>
+  <main style="padding:24px;max-width:500px;margin:auto;">
+    <a href="index.html" class="logo" style="text-decoration:none;color:inherit;cursor:pointer;font-size:2rem;">Flexiway</a>
+    <h2>Crear cuenta</h2>
+    <form style="display:flex;flex-direction:column;gap:12px;">
+      <label>Email<input type="email" required></label>
+      <label>Contraseña<input type="password" required></label>
+      <label>Confirmar contraseña<input type="password" required></label>
+      <button type="submit">Crear cuenta</button>
+    </form>
+  </main>
+</body>
+</html>

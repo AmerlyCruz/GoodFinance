@@ -1,0 +1,359 @@
+/* ================= CLOSE SIDEBAR BUTTON ================= */
+.close-btn {
+	position: absolute;
+	top: 18px;
+	right: 18px;
+	background: none;
+	border: none;
+	padding: 6px;
+	border-radius: 50%;
+	cursor: pointer;
+	transition: background 0.2s;
+	z-index: 1100;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+.close-btn:hover {
+	background: #ffe5e7;
+	box-shadow: 0 2px 8px rgba(230,57,70,0.08);
+}
+.close-btn svg {
+	stroke: #e63946;
+	width: 24px;
+	height: 24px;
+}
+/* ================= PANEL LATERAL DE PERFIL ================= */
+.profile-panel {
+	position: fixed;
+	top: 0;
+	right: -380px;
+	width: 380px;
+	height: 100%;
+	background: white;
+	box-shadow: -4px 0 20px rgba(0,0,0,0.08);
+	transition: right 0.3s ease, opacity 0.3s, visibility 0.3s;
+	z-index: 1002;
+	padding: 24px;
+	overflow-y: auto;
+	opacity: 0;
+	visibility: hidden;
+}
+.profile-panel.active {
+	right: 0;
+	opacity: 1;
+	visibility: visible;
+}
+.profile-overlay {
+	position: fixed;
+	inset: 0;
+	background: rgba(0,0,0,0.4);
+	opacity: 0;
+	pointer-events: none;
+	transition: opacity 0.3s, visibility 0.3s;
+	z-index: 1001;
+	visibility: hidden;
+}
+.profile-overlay.active {
+	opacity: 1;
+	pointer-events: auto;
+	visibility: visible;
+}
+/* ================= MEDIA QUERIES: RESPONSIVE ================= */
+/* Móvil: pantallas hasta 768px */
+@media (max-width: 768px) {
+	/* Sidebar colapsa */
+	.sidebar {
+		position: fixed;
+		left: -250px; /* escondido por defecto */
+		width: 200px;
+		z-index: 1000;
+		transition: left 0.3s ease;
+		opacity: 1;
+		visibility: visible;
+		top: 0;
+		height: 100%;
+		box-shadow: 4px 0 20px rgba(0,0,0,0.08);
+		padding: 16px 0 16px 16px;
+	}
+	.sidebar.active {
+		left: 0;
+	}
+	/* Header ajustado */
+	header, .main-header {
+		display: flex;
+		justify-content: space-between;
+		padding: 10px;
+		flex-wrap: wrap;
+	}
+	/* Mejor jerarquía visual en móvil */
+	body {
+		font-size: 15px;
+	}
+	.main-content {
+		padding: 12px;
+	}
+	section {
+		margin-bottom: 16px;
+	}
+	h1, h2, h3 {
+		margin-bottom: 8px;
+		line-height: 1.2;
+	}
+	.card, .panel, .alert {
+		border-radius: 12px;
+	}
+	/* Panel derecho se mueve debajo */
+	.notification-panel, .right-panel {
+		width: 100%;
+		margin-top: 20px;
+		right: 0;
+		left: 0;
+		box-shadow: none;
+		position: static;
+		height: auto;
+		padding: 12px;
+	}
+	/* Contenedores de tarjetas o alertas */
+	.card-container, .alerts-container, .panel-messages {
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+	}
+	/* Botones y texto más grandes para tocar */
+	button, .alert, .message {
+		font-size: 16px;
+		padding: 10px;
+	}
+}
+/* ================= SIDEBAR PANEL ================= */
+.sidebar {
+	position: fixed;
+	top: 0;
+	left: -320px;
+	width: 320px;
+	height: 100%;
+	background: white;
+	box-shadow: 4px 0 20px rgba(0,0,0,0.08);
+	transition: left 0.3s ease, opacity 0.3s, visibility 0.3s;
+	z-index: 1001;
+	padding: 24px 0 24px 24px;
+	overflow-y: auto;
+	opacity: 0;
+	visibility: hidden;
+}
+.sidebar.active {
+	left: 0;
+	opacity: 1;
+	visibility: visible;
+}
+
+.overlay {
+	position: fixed;
+	inset: 0;
+	background: rgba(0,0,0,0.4);
+	opacity: 0;
+	pointer-events: none;
+	transition: opacity 0.3s, visibility 0.3s;
+	z-index: 1000;
+	visibility: hidden;
+}
+.overlay.active {
+	opacity: 1;
+	pointer-events: auto;
+	visibility: visible;
+}
+
+.notification-panel {
+	right: -380px;
+	visibility: hidden;
+	opacity: 0;
+	transition: right 0.3s, opacity 0.3s, visibility 0.3s;
+}
+.notification-panel.active {
+	right: 0;
+	visibility: visible;
+	opacity: 1;
+}
+
+
+.notification-overlay {
+	opacity: 0;
+	pointer-events: none;
+	visibility: hidden;
+	transition: opacity 0.3s, visibility 0.3s;
+}
+.notification-overlay.active {
+	opacity: 1;
+	pointer-events: auto;
+	visibility: visible;
+}
+
+/* ================= HEADER ================= */
+
+.main-header {
+	height: 64px;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 0 24px;
+	background: white;
+	border-bottom: 1px solid #eef1f4;
+	position: sticky;
+	top: 0;
+	z-index: 10;
+}
+
+.logo {
+	font-size: 18px;
+	font-weight: 600;
+	color: #1c2b3a; /* azul oscuro elegante */
+}
+
+.icon-btn {
+	background: none;
+	border: none;
+	cursor: pointer;
+	padding: 8px;
+	border-radius: 8px;
+	transition: background 0.2s ease;
+}
+
+.icon-btn:hover {
+	background: #f2f6fa;
+}
+
+.header-actions {
+	display: flex;
+	gap: 12px;
+}
+
+
+/* ================= PANEL DERECHO ================= */
+
+.notification-panel {
+	position: fixed;
+	top: 0;
+	right: -380px;
+	width: 380px;
+	height: 100%;
+	background: white;
+	box-shadow: -4px 0 20px rgba(0,0,0,0.08);
+	transition: right 0.3s ease;
+	z-index: 1000;
+	padding: 24px;
+	overflow-y: auto;
+}
+
+.notification-panel.active {
+	right: 0;
+}
+
+.notification-overlay {
+	position: fixed;
+	inset: 0;
+	background: rgba(0,0,0,0.4);
+	opacity: 0;
+	pointer-events: none;
+	transition: opacity 0.3s ease;
+	z-index: 999;
+}
+
+.notification-overlay.active {
+	opacity: 1;
+	pointer-events: auto;
+}
+
+
+/* ================= RESUMEN ================= */
+
+.panel-summary {
+	margin-bottom: 24px;
+}
+
+.panel-summary h2 {
+	font-size: 18px;
+	margin-bottom: 12px;
+	color: #1c2b3a;
+}
+
+.summary-items p {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	font-size: 14px;
+	margin-bottom: 6px;
+}
+
+
+/* ================= MENSAJES ================= */
+
+.panel-messages {
+	display: flex;
+	flex-direction: column;
+	gap: 16px;
+}
+
+.message {
+	display: flex;
+	gap: 12px;
+	padding: 14px;
+	border-radius: 12px;
+	background: #f9fbfd;
+	transition: background 0.2s ease;
+}
+
+.message:hover {
+	background: #eef4fa;
+}
+
+.message p {
+	margin: 4px 0;
+	font-size: 14px;
+}
+
+.message small {
+	color: #6b7a8c;
+	font-size: 12px;
+}
+
+
+/* ================= DOTS ================= */
+
+.dot {
+	width: 10px;
+	height: 10px;
+	border-radius: 50%;
+	margin-top: 6px;
+}
+
+.red { background: #e63946; }
+.yellow { background: #f4a261; }
+.green { background: #2a9d8f; }
+
+
+/* ================= TAGS ================= */
+
+.tag {
+	font-size: 11px;
+	font-weight: 600;
+	padding: 3px 8px;
+	border-radius: 6px;
+	display: inline-block;
+	margin-bottom: 4px;
+}
+
+.alert-tag {
+	background: #ffe5e7;
+	color: #b42318;
+}
+
+.reminder-tag {
+	background: #fff4e5;
+	color: #b76e00;
+}
+
+.suggestion-tag {
+	background: #e6f7f3;
+	color: #0f766e;
+}
