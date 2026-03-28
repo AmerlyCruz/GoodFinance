@@ -321,6 +321,70 @@ document.addEventListener("DOMContentLoaded", () => {
 	}
 });
 
+const GOODFINANCE_DEMO_KEYS = [
+	'financialData',
+	'ingresos',
+	'tarjetasCredito',
+	'prestamos',
+	'servicios',
+	'deudas',
+	'customCats'
+];
+
+const GOODFINANCE_DEMO_DATA = {
+	financialData: {
+		spent: 1730,
+		budget: 3200,
+		creditDueInDays: 4,
+		possibleSavings: 420,
+		debts: 310
+	},
+	ingresos: [
+		{ descripcion: 'Salario mensual', monto: 3200, fecha: '2026-03-01' },
+		{ descripcion: 'Trabajo freelance', monto: 480, fecha: '2026-03-18' }
+	],
+	tarjetasCredito: [
+		{ nombre: 'Visa principal', monto: 640, fechaCorte: '2026-03-29', tasa: 24.5 },
+		{ nombre: 'MasterCard viajes', monto: 230, fechaCorte: '2026-04-03', tasa: 21.9 }
+	],
+	prestamos: [
+		{ nombre: 'Prestamo del auto', monto: 410, fechaPago: '2026-04-07', tasa: 11.2 }
+	],
+	servicios: [
+		{ nombre: 'Internet y móvil', monto: 95, fechaPago: '2026-03-27' },
+		{ nombre: 'Streaming y apps', monto: 38, fechaPago: '2026-03-30' }
+	],
+	deudas: [
+		{ nombre: 'Saldo pendiente personal', monto: 310, fechaPago: '2026-04-11' }
+	],
+	customCats: [
+		{ nombre: 'Comidas fuera', monto: 115, fecha: '2026-03-22' },
+		{ nombre: 'Transporte', monto: 92, fecha: '2026-03-21' }
+	]
+};
+
+function ensureDemoData() {
+	if (typeof localStorage === 'undefined') return;
+
+	const hasExistingData = GOODFINANCE_DEMO_KEYS.some((key) => {
+		const value = localStorage.getItem(key);
+		return typeof value === 'string' && value.trim() !== '' && value.trim() !== '[]' && value.trim() !== '{}';
+	});
+
+	if (hasExistingData) return;
+
+	GOODFINANCE_DEMO_KEYS.forEach((key) => {
+		localStorage.setItem(key, JSON.stringify(GOODFINANCE_DEMO_DATA[key]));
+	});
+
+	localStorage.removeItem('hideStartupAlerts');
+	localStorage.removeItem('lastAlertsHash');
+	sessionStorage.removeItem('alertsShown');
+	localStorage.setItem('goodfinance-demo-seeded', 'true');
+}
+
+ensureDemoData();
+
 // ========== SIDEBAR & OVERLAY ==========
 const sidebar = document.getElementById('sidebar');
 const overlay = document.getElementById('overlay');

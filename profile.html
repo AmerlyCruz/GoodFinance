@@ -38,10 +38,61 @@
       </button>
     </div>
   </header>
-  <main style="padding:24px;max-width:500px;margin:auto;">
+  <main style="padding:24px;max-width:720px;margin:auto;">
     <a href="index.html" class="logo" style="text-decoration:none;color:inherit;cursor:pointer;font-size:2rem;">Flexiway</a>
     <h2>Mi Perfil</h2>
-    <p>Aquí se mostraría la información del usuario.</p>
+    <p>Resumen demo del estado financiero actual.</p>
+
+    <section id="profileSummary" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-top:24px;"></section>
+
+    <section style="background:#fff7e6;border-radius:16px;padding:18px 20px;margin-top:20px;box-shadow:0 2px 12px #ffd6e0;">
+      <h3 style="margin-top:0;color:#e63946;">Lectura rápida</h3>
+      <ul id="profileInsights" style="margin:0;padding-left:18px;color:#1c2b3a;line-height:1.7;"></ul>
+    </section>
+
+    <a href="edit-profile.html" style="display:inline-flex;align-items:center;justify-content:center;margin-top:18px;padding:12px 18px;border-radius:999px;background:#e63946;color:#fff;text-decoration:none;font-weight:700;">Editar datos financieros</a>
   </main>
+
+  <script>
+    const financialData = JSON.parse(localStorage.getItem('financialData') || '{}');
+    const profileSummary = document.getElementById('profileSummary');
+    const profileInsights = document.getElementById('profileInsights');
+
+    const spent = Number(financialData.spent) || 0;
+    const budget = Number(financialData.budget) || 0;
+    const possibleSavings = Number(financialData.possibleSavings) || 0;
+    const debts = Number(financialData.debts) || 0;
+    const creditDueInDays = Number(financialData.creditDueInDays) || 0;
+    const usage = budget > 0 ? (spent / budget) * 100 : 0;
+    const remaining = Math.max(budget - spent - possibleSavings - debts, 0);
+
+    const cards = [
+      { label: 'Presupuesto mensual', value: '$' + budget.toLocaleString() },
+      { label: 'Gasto actual', value: '$' + spent.toLocaleString() },
+      { label: 'Ahorro posible', value: '$' + possibleSavings.toLocaleString() },
+      { label: 'Uso del presupuesto', value: usage.toFixed(1) + '%' }
+    ];
+
+    profileSummary.innerHTML = cards.map((card) => `
+      <article style="background:#fff;border-radius:16px;padding:18px;box-shadow:0 2px 12px #ffd6e0;">
+        <p style="margin:0 0 8px;color:#b42318;font-weight:700;">${card.label}</p>
+        <strong style="font-size:1.5rem;color:#1c2b3a;">${card.value}</strong>
+      </article>
+    `).join('');
+
+    const insights = [
+      usage >= 80
+        ? 'Tu gasto ya supera el 80% del presupuesto mensual.'
+        : 'Tu nivel de gasto todavía se mantiene bajo control.',
+      creditDueInDays > 0
+        ? `Tu próxima tarjeta vence en ${creditDueInDays} día(s).`
+        : 'No hay vencimientos de tarjeta próximos registrados.',
+      remaining > 0
+        ? `Después de gastos, ahorro y deudas todavía quedarían $${remaining.toLocaleString()} disponibles.`
+        : 'El presupuesto restante ya está comprometido por completo.'
+    ];
+
+    profileInsights.innerHTML = insights.map((item) => `<li>${item}</li>`).join('');
+  </script>
 </body>
 </html>
