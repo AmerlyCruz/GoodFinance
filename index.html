@@ -1,665 +1,277 @@
 <!DOCTYPE html>
-<html lang="en">
-
+<html lang="es">
 <head>
-  <!-- Configuración básica del documento -->
   <meta charset="UTF-8">
-  <title>Flexiway - Dashboard</title>
-
-  <!-- Hace que el diseño sea responsive -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-  <!-- Google Fonts: Cormorant Garamond y Tinos -->
+  <title>Flexiway - Inicio</title>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=Tinos:wght@400;700&display=swap" rel="stylesheet">
-  <!-- Enlace al archivo de estilos principal del layout -->
   <link rel="stylesheet" href="template/layout.css">
-  <!-- SweetAlert2 -->
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-</head>
-
-<body>
-
-  <!-- Contenedor principal de la aplicación -->
-  <div class="app">
-
-    <!-- =========================================
-         SIDEBAR (Panel lateral de navegación)
-         Oculto por defecto (se activará con JS)
-    ========================================== -->
-    <aside class="sidebar" id="sidebar">
-      <!-- Botón cerrar sidebar -->
-      <button id="closeSidebar" class="close-btn" aria-label="Cerrar menú">
-        <!-- SVG X -->
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <line x1="18" y1="6" x2="6" y2="18"></line>
-          <line x1="6" y1="6" x2="18" y2="18"></line>
-        </svg>
-      </button>
-
-      <!-- Encabezado del sidebar -->
-      <div class="sidebar-header">
-        <a href="index.html" class="logo" style="text-decoration:none;color:inherit;cursor:pointer;">Flexiway</a>
-      </div>
-
-      <!-- Navegación principal -->
-      <nav class="nav">
-
-
-        <!-- Dashboard -->
-        <a href="index.html" class="nav-item active">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="7" width="18" height="13" rx="4" fill="#ffd6e0"/><path d="M7 14v-2a5 5 0 0110 0v2" stroke="#e63946" stroke-width="1.7" stroke-linecap="round"/></svg>
-          <span>Dashboard</span>
-        </a>
-
-        <!-- Registrar Gastos -->
-        <a href="registrar-gastos.html" class="nav-item">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="4" y="6" width="16" height="12" rx="3" fill="#e9a6b2"/><path d="M8 10h8M8 14h5" stroke="#e63946" stroke-width="1.7" stroke-linecap="round"/></svg>
-          <span>Registrar Gastos</span>
-        </a>
-
-        <!-- Analysis -->
-        <a href="analysis.html" class="nav-item">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="5" fill="#b5ead7"/><path d="M7 15l3-3 3 3 4-4" stroke="#38b000" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          <span>Analysis</span>
-        </a>
-
-        <!-- Credit -->
-        <a href="credit.html" class="nav-item">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="2" y="6" width="20" height="12" rx="3" fill="#c7ceea"/><rect x="6" y="10" width="6" height="2" rx="1" fill="#a8dadc"/></svg>
-          <span>Credit</span>
-        </a>
-
-        <!-- Savings -->
-        <a href="savings.html" class="nav-item">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><ellipse cx="12" cy="14" rx="8" ry="6" fill="#fdfd96"/><path d="M12 8v8M8 12h8" stroke="#e9a600" stroke-width="1.7" stroke-linecap="round"/></svg>
-          <span>Savings</span>
-        </a>
-
-      </nav>
-    </aside>
-
-    <!-- Overlay oscuro cuando el sidebar está abierto -->
-    <div class="overlay" id="overlay"></div>
-
-    <!-- =========================================
-         MAIN (Contenido principal de la página)
-    ========================================== -->
-    <main class="main">
-
-      <!-- Barra superior -->
-      <!-- ================= HEADER ================= -->
-      <header class="main-header">
-        <!-- Botón menú (abre sidebar) -->
-        <button id="toggleSidebar" class="icon-btn" aria-label="Abrir menú">
-          <!-- SVG menú -->
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="3" y1="6" x2="21" y2="6"></line>
-            <line x1="3" y1="12" x2="21" y2="12"></line>
-            <line x1="3" y1="18" x2="21" y2="18"></line>
-          </svg>
-        </button>
-
-        <!-- Logo / Nombre -->
-        <a href="index.html" class="logo" style="text-decoration:none;color:inherit;cursor:pointer;">Flexiway</a>
-
-        <!-- Acciones del header -->
-        <div class="header-actions">
-          <!-- Notificaciones -->
-          <button id="notificationBtn" class="icon-btn" aria-label="Notificaciones">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M18 8a6 6 0 10-12 0c0 7-3 7-3 7h18s-3 0-3-7"></path>
-              <path d="M13.73 21a2 2 0 01-3.46 0"></path>
-            </svg>
-          </button>
-          <!-- Perfil: al hacer clic, abre edición de datos financieros -->
-          <button class="icon-btn" aria-label="Perfil" id="profileBtn">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="7" r="4"></circle>
-              <path d="M5.5 21a8.38 8.38 0 0113 0"></path>
-            </svg>
-          </button>
-        </div>
-      </header>
-
-      <!-- Sección principal del contenido -->
-      <section class="content">
-        <div class="dashboard-hero">
-          <div>
-            <p class="dashboard-hero__eyebrow">Plan financiero personal</p>
-            <h1 class="dashboard-hero__title">Tu dinero, tus deudas y tu margen de ahorro en una vista clara.</h1>
-            <p class="dashboard-hero__copy">Flexiway resume tu situación actual para ayudarte a decidir mejor, detectar alertas y encontrar espacio real de ahorro sin perder contexto.</p>
-          </div>
-          <div class="dashboard-hero__badge">
-            <span>Estado actual</span>
-            <strong id="healthStatus">Cargando...</strong>
-          </div>
-        </div>
-
-        <!-- Resumen compacto superior -->
-        <div class="kpi-row">
-          <div class="kpi-card">
-            <div class="kpi-label">Uso del presupuesto</div>
-            <div class="kpi-value" id="budgetPercent">-</div>
-          </div>
-          <div class="kpi-card">
-            <div class="kpi-label">Posible ahorro</div>
-            <div class="kpi-value" id="possibleSavings">-</div>
-          </div>
-          <div class="kpi-card">
-            <div class="kpi-label">Riesgo de crédito</div>
-            <div class="kpi-value" id="creditRisk">-</div>
-          </div>
-        </div>
-        <!-- Gráfico de presupuesto -->
-        <div style="max-width:440px;margin:0 auto 40px auto;position:relative;">
-          <canvas id="budgetChart" width="400" height="320" style="min-height:240px;"></canvas>
-          <div id="chartOverlayMsg" style="display:none;position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,0.85);color:#222;align-items:center;justify-content:center;font-size:1.1em;font-weight:500;z-index:2;text-align:center;padding-top:90px;">
-            Configura tus datos financieros para ver el gráfico
-          </div>
-        </div>
-
-        <div class="dashboard-grid">
-          <article class="dashboard-panel dashboard-panel--soft">
-            <p class="dashboard-panel__eyebrow">Lectura rápida</p>
-            <h2>Qué está pasando este mes</h2>
-            <ul id="moneyInsights" class="dashboard-list"></ul>
-          </article>
-
-          <article class="dashboard-panel dashboard-panel--accent">
-            <p class="dashboard-panel__eyebrow">Movimiento estimado</p>
-            <h2>Balance operativo</h2>
-            <div class="dashboard-balance">
-              <div>
-                <span>Disponible</span>
-                <strong id="remainingBalance">-</strong>
-              </div>
-              <div>
-                <span>Deudas registradas</span>
-                <strong id="debtBalance">-</strong>
-              </div>
-            </div>
-          </article>
-        </div>
-      </section>
-
-    </main>
-
-  </div>
-
-  <!-- Chart.js CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-  <!-- Script que controlará el comportamiento del layout -->
-  <!-- ================= NOTIFICATION PANEL ================= -->
-  <aside id="notificationPanel" class="notification-panel">
-    <!-- ================= RESUMEN INTELIGENTE ================= -->
-    <div class="panel-summary">
-      <h2>Centro Inteligente</h2>
-      <div class="summary-items">
-        <p><span class="dot red"></span> 2 alertas críticas</p>
-        <p><span class="dot yellow"></span> 1 pago próximo</p>
-        <p><span class="dot green"></span> 3 oportunidades de ahorro</p>
-      </div>
-    </div>
-
-    <!-- ================= LISTA DE MENSAJES ================= -->
-    <div class="panel-messages">
-      <!-- Mensaje alerta -->
-      <div class="message alert">
-        <span class="dot red"></span>
-        <div>
-          <span class="tag alert-tag">Alerta</span>
-          <p>Has gastado el 80% de tu presupuesto mensual.</p>
-          <small>Hoy</small>
-        </div>
-      </div>
-      <!-- Mensaje recordatorio -->
-      <div class="message reminder">
-        <span class="dot yellow"></span>
-        <div>
-          <span class="tag reminder-tag">Recordatorio</span>
-          <p>Tu tarjeta vence en 3 días.</p>
-          <small>Vence el 7 de marzo</small>
-        </div>
-      </div>
-      <!-- Mensaje sugerencia -->
-      <div class="message suggestion">
-        <span class="dot green"></span>
-        <div>
-          <span class="tag suggestion-tag">Sugerencia</span>
-          <p>Puedes ahorrar $120 si reduces ocio un 10%.</p>
-          <small>Proyección mensual</small>
-        </div>
-      </div>
-    </div>
-  </aside>
-  <!-- Overlay para notificaciones -->
-  <div id="notificationOverlay" class="notification-overlay"></div>
-
-  <!-- Panel lateral de perfil -->
-  <aside id="profilePanel" class="profile-panel">
-    <div class="profile-header">
-      <h2>Mi Perfil</h2>
-    </div>
-    <div class="profile-content" style="display:flex;flex-direction:column;gap:16px;">
-      <button id="profile-login" class="profile-btn">Login</button>
-      <button id="profile-signup" class="profile-btn">Crear cuenta</button>
-      <button id="profile-view" class="profile-btn">Ver perfil</button>
-      <button id="profile-logout" class="profile-btn" style="background:#e63946;color:#fff;">Cerrar sesión</button>
-    </div>
-  </aside>
-  <div id="profileOverlay" class="profile-overlay"></div>
-
-
-
-  <!-- Script que controlará el comportamiento del layout (ahora al final para asegurar que el canvas existe) -->
-  <script src="template/layout.js"></script>
-  <script>
-  // Inicializar dashboard visual al cargar
-  document.addEventListener("DOMContentLoaded", function() {
-    let data = (typeof getFinancialData === "function") ? getFinancialData() : null;
-    if (!data) {
-      data = { spent: 0, budget: 0, creditDueInDays: 0, possibleSavings: 0 };
-    }
-    const metrics = (typeof generateDashboardData === "function") ? generateDashboardData(data) : {};
-    // KPIs
-    if (document.getElementById("budgetPercent")) {
-      document.getElementById("budgetPercent").textContent = metrics.budgetUsage?.toFixed(1) + "%";
-    }
-    if (document.getElementById("possibleSavings")) {
-      document.getElementById("possibleSavings").textContent = "$" + (metrics.possibleSavings ?? 0);
-    }
-    if (document.getElementById("creditRisk")) {
-      let label = "Bajo";
-      if (metrics.creditRisk === "high") label = "Alto";
-      else if (metrics.creditRisk === "medium") label = "Medio";
-      document.getElementById("creditRisk").textContent = label;
-    }
-    const healthStatus = document.getElementById("healthStatus");
-    if (healthStatus) {
-      const usage = Number(metrics.budgetUsage || 0);
-      healthStatus.textContent = usage >= 80 ? "Atención" : usage >= 60 ? "Vigilado" : "Estable";
-    }
-    // Mostrar overlay si los datos son cero
-    const overlayMsg = document.getElementById("chartOverlayMsg");
-    if (metrics.totalSpent === 0 && metrics.remainingBudget === 0) {
-      if (overlayMsg) overlayMsg.style.display = "flex";
-    } else {
-      if (overlayMsg) overlayMsg.style.display = "none";
-    }
-    const moneyInsights = document.getElementById("moneyInsights");
-    if (moneyInsights) {
-      const usage = Number(metrics.budgetUsage || 0);
-      const insights = [
-        usage >= 80
-          ? `Ya utilizaste ${usage.toFixed(1)}% del presupuesto mensual.`
-          : `Tu consumo actual va en ${usage.toFixed(1)}% del presupuesto.` ,
-        Number(data.creditDueInDays) > 0
-          ? `La tarjeta principal vence en ${Number(data.creditDueInDays)} día(s).`
-          : "No hay vencimientos inmediatos registrados.",
-        Number(data.possibleSavings) > 0
-          ? `Podrías rescatar $${Number(data.possibleSavings).toLocaleString()} este mes con pequeños ajustes.`
-          : "Todavía no hay ahorro potencial identificado."
-      ];
-      moneyInsights.innerHTML = insights.map((item) => `<li>${item}</li>`).join("");
-    }
-    const remainingBalance = document.getElementById("remainingBalance");
-    if (remainingBalance) {
-      const remaining = Math.max((Number(data.budget) || 0) - (Number(data.spent) || 0) - (Number(data.possibleSavings) || 0) - (Number(data.debts) || 0), 0);
-      remainingBalance.textContent = "$" + remaining.toLocaleString();
-    }
-    const debtBalance = document.getElementById("debtBalance");
-    if (debtBalance) {
-      debtBalance.textContent = "$" + (Number(data.debts) || 0).toLocaleString();
-    }
-    // Gráfico
-    if (typeof renderBudgetChart === "function") {
-      renderBudgetChart(data);
-    }
-  });
-  </script>
-</body>
   <style>
     :root {
       --rosa-palo: #e9a6b2;
       --crema: #fff7e6;
       --blanco-palido: #fdf6f0;
-      --gris-suave: #e5e5e5;
-      --texto-principal: #3a2c2a;
       --rosa-palo-oscuro: #d97a8a;
+      --texto-principal: #3a2c2a;
     }
     body {
+      margin: 0;
       background: var(--blanco-palido);
       color: var(--texto-principal);
       font-family: 'Tinos', serif;
-    }
-    h1, h2, h3, .logo, .main-header .logo {
-      font-family: 'Cormorant Garamond', serif !important;
-      font-weight: 600;
-      letter-spacing: 1px;
-    }
-    .kpi h3 {
-      font-family: 'Cormorant Garamond', serif !important;
-      font-weight: 600;
     }
     .main-header {
       background: var(--rosa-palo);
       color: var(--crema);
       border-bottom: 1px solid var(--rosa-palo-oscuro);
-      box-shadow: 0 2px 8px 0 rgba(233,166,178,0.08);
     }
-    .main-header .logo, .main-header h1 {
-      color: var(--crema) !important;
-      letter-spacing: 1px;
-      font-size: 2.4rem !important;
-      line-height: 1.1;
-      font-weight: 700;
-    }
-    .content {
-      max-width: 1120px;
-      margin: 0 auto;
-      padding: 28px 18px 56px;
-    }
-    .dashboard-hero {
-      display: grid;
-      grid-template-columns: minmax(0, 1.6fr) minmax(220px, 0.8fr);
-      gap: 20px;
-      align-items: stretch;
-      margin-top: 18px;
-      margin-bottom: 28px;
-    }
-    .dashboard-hero__eyebrow,
-    .dashboard-panel__eyebrow {
-      margin: 0 0 10px;
-      color: var(--rosa-palo-oscuro);
-      font-size: 0.84rem;
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      font-weight: 700;
-    }
-    .dashboard-hero__title {
-      margin: 0;
-      font-size: clamp(2rem, 3.4vw, 3.2rem);
-      line-height: 0.98;
-      color: #8f4758;
-    }
-    .dashboard-hero__copy {
-      max-width: 62ch;
-      margin: 14px 0 0;
-      font-size: 1.02rem;
-      line-height: 1.7;
-      color: #5c4846;
-    }
-    .dashboard-hero__badge,
-    .dashboard-panel {
-      background: rgba(255, 247, 230, 0.9);
-      border: 1.5px solid rgba(217, 122, 138, 0.4);
-      border-radius: 22px;
-      box-shadow: 0 14px 34px rgba(233, 166, 178, 0.14);
-      padding: 22px;
-    }
-    .dashboard-hero__badge {
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      gap: 10px;
-      background: linear-gradient(180deg, rgba(233, 166, 178, 0.18), rgba(255, 247, 230, 0.96));
-    }
-    .dashboard-hero__badge span {
-      color: #8f4758;
-      font-size: 0.92rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-    }
-    .dashboard-hero__badge strong {
-      font-size: clamp(1.8rem, 2.8vw, 2.6rem);
-      color: #3a2c2a;
+    .main-header .logo {
+      color: var(--crema);
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 2rem;
+      text-decoration: none;
     }
     .header-actions .icon-btn {
-      background: var(--rosa-palo-oscuro);
+      background: rgba(255,255,255,0.18);
       color: var(--crema);
-      border-radius: 50%;
-      border: none;
-      margin-left: 8px;
-      transition: background 0.2s;
     }
-    .header-actions .icon-btn:hover {
-      background: var(--rosa-palo);
+    .content {
+      padding: 32px 24px 48px;
+      max-width: 1200px;
+      margin: 0 auto;
     }
-    .sidebar {
-      background: var(--crema);
-      color: var(--texto-principal);
-      border-right: 1px solid var(--rosa-palo-oscuro);
-      min-width: 220px;
-      max-width: 260px;
-      padding: 0 0 24px 0;
-      box-shadow: 2px 0 12px 0 rgba(233,166,178,0.06);
-      height: 100vh;
-      display: flex;
-      flex-direction: column;
-      justify-content: flex-start;
+    .hero {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr;
+      gap: 24px;
+      align-items: stretch;
     }
-    .sidebar-header {
-      padding: 32px 0 18px 0;
-      text-align: center;
-    }
-    .sidebar-header .logo {
-      color: var(--rosa-palo-oscuro);
-      font-size: 2.1rem;
-      font-family: 'Cormorant Garamond', serif;
-      font-weight: 700;
-      letter-spacing: 2px;
-    }
-    .nav {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      padding: 0 18px;
-      margin-top: 10px;
-    }
-    .nav-item {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      color: var(--texto-principal);
-      border-radius: 8px;
-      margin-bottom: 2px;
-      padding: 10px 14px;
-      font-size: 1.08em;
-      font-family: 'Tinos', serif;
-      font-weight: 400;
-      background: transparent;
-      transition: background 0.18s, color 0.18s;
-      cursor: pointer;
-      border: none;
-      outline: none;
-    }
-    .nav-item svg {
-      min-width: 20px;
-      min-height: 20px;
-      color: var(--rosa-palo-oscuro);
-      opacity: 0.85;
-      transition: color 0.18s;
-    }
-    .nav-item.active, .nav-item:hover {
-      background: var(--rosa-palo);
-      color: var(--crema) !important;
-    }
-    .nav-item.active svg, .nav-item:hover svg {
-      color: var(--crema);
-      opacity: 1;
-    }
-    .kpi-row {
-      display: flex;
-      gap: 18px;
-      margin-bottom: 28px;
-      margin-top: 32px;
-      justify-content: center;
-      flex-wrap: wrap;
-    }
+    .hero-card,
+    .panel-card,
     .kpi-card {
       background: var(--crema);
-      border-radius: 14px;
-      box-shadow: 0 2px 8px 0 rgba(233,166,178,0.10);
-      padding: 18px 28px 14px 28px;
-      min-width: 170px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      border: 1.5px solid var(--rosa-palo-oscuro);
-      transition: box-shadow 0.2s, border 0.2s;
+      border: 1.5px solid rgba(217,122,138,0.25);
+      border-radius: 22px;
+      box-shadow: 0 10px 30px rgba(233,166,178,0.12);
     }
-    .kpi-card:hover {
-      box-shadow: 0 6px 24px 0 rgba(233,166,178,0.18);
-      border-color: var(--rosa-palo);
+    .hero-card {
+      padding: 28px;
+      background: linear-gradient(135deg, #fff7e6 0%, #ffe3eb 100%);
+    }
+    .hero-card h1 {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 3rem;
+      line-height: 0.95;
+      margin: 0 0 14px;
+    }
+    .hero-card p {
+      font-size: 1.05rem;
+      max-width: 52ch;
+      margin-bottom: 22px;
+    }
+    .quick-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .quick-actions a {
+      text-decoration: none;
+      color: inherit;
+      padding: 12px 16px;
+      border-radius: 999px;
+      background: #fff;
+      border: 1px solid rgba(217,122,138,0.35);
+      font-weight: 700;
+    }
+    .side-summary {
+      display: grid;
+      gap: 16px;
+    }
+    .kpi-row {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 18px;
+      margin: 28px 0;
+    }
+    .kpi-card {
+      padding: 20px;
     }
     .kpi-label {
-      font-family: 'Cormorant Garamond', serif;
-      font-size: 1.13em;
       color: var(--rosa-palo-oscuro);
-      margin-bottom: 6px;
-      font-weight: 600;
-      letter-spacing: 0.5px;
-      text-align: center;
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 1.15rem;
+      margin-bottom: 8px;
     }
     .kpi-value {
-      font-family: 'Tinos', serif;
-      font-size: 1.45em;
-      color: var(--texto-principal);
+      font-size: 1.5rem;
       font-weight: 700;
-      text-align: center;
-      letter-spacing: 0.5px;
-    }
-    #budgetChart {
-      display: block;
-      width: 100% !important;
-      height: 340px !important;
-      min-height: 240px;
-      margin: 0 auto;
-      background: var(--crema);
-      border-radius: 18px;
-      box-shadow: 0 6px 32px 0 rgba(233,166,178,0.18), 0 1.5px 8px 0 rgba(233,166,178,0.10);
-      border: 3px solid var(--rosa-palo);
-      transition: box-shadow 0.3s, border 0.3s;
-    }
-    #budgetChart:hover {
-      box-shadow: 0 10px 40px 0 rgba(233,166,178,0.28), 0 2px 12px 0 rgba(233,166,178,0.18);
-      border-color: var(--rosa-palo-oscuro);
     }
     .dashboard-grid {
       display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 20px;
-      margin-top: 10px;
+      grid-template-columns: 1.2fr 0.8fr;
+      gap: 24px;
+      align-items: start;
     }
-    .dashboard-panel h2 {
-      margin: 0 0 14px;
-      color: #8f4758;
-      font-size: 1.7rem;
+    .panel-card {
+      padding: 24px;
     }
-    .dashboard-panel--accent {
-      background: linear-gradient(180deg, rgba(181, 234, 215, 0.48), rgba(255, 247, 230, 0.96));
-      border-color: rgba(69, 152, 127, 0.28);
+    .panel-card h2 {
+      margin-top: 0;
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 2rem;
     }
-    .dashboard-list {
-      margin: 0;
-      padding-left: 18px;
+    #budgetChart {
+      width: 100% !important;
+      height: 340px !important;
+    }
+    .summary-list {
       display: grid;
-      gap: 12px;
-      color: #4d3f3d;
-      line-height: 1.6;
+      gap: 14px;
     }
-    .dashboard-balance {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+    .summary-item {
+      display: flex;
+      justify-content: space-between;
       gap: 16px;
+      padding: 14px 0;
+      border-bottom: 1px solid rgba(58,44,42,0.08);
     }
-    .dashboard-balance div {
-      background: rgba(255, 255, 255, 0.72);
+    .summary-item:last-child {
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+    #chartOverlayMsg {
+      display: none;
+      position: absolute;
+      inset: 0;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 0 40px;
+      background: rgba(255,255,255,0.86);
       border-radius: 18px;
-      padding: 18px;
-      border: 1px solid rgba(217, 122, 138, 0.16);
-    }
-    .dashboard-balance span {
-      display: block;
-      font-size: 0.92rem;
-      color: #6e5b58;
-      margin-bottom: 8px;
-    }
-    .dashboard-balance strong {
-      font-size: 1.7rem;
-      color: #2f353d;
-    }
-    .swal2-popup {
-      background: var(--crema) !important;
-      color: var(--texto-principal) !important;
-      border-radius: 12px !important;
-    }
-    .swal2-confirm {
-      background: var(--rosa-palo-oscuro) !important;
-      color: var(--crema) !important;
-      border-radius: 6px !important;
-    }
-    .swal2-cancel {
-      background: var(--gris-suave) !important;
-      color: var(--texto-principal) !important;
-      border-radius: 6px !important;
-    }
-    .profile-panel, .notification-panel {
-      background: var(--crema);
-      color: var(--texto-principal);
-      border-left: 1px solid var(--rosa-palo-oscuro);
-    }
-    .profile-btn {
-      background: var(--rosa-palo);
-      color: var(--crema);
-      border: none;
-      border-radius: 6px;
-      padding: 10px 0;
-      margin-bottom: 6px;
-      font-size: 1em;
-      transition: background 0.2s;
-    }
-    .profile-btn:hover {
-      background: var(--rosa-palo-oscuro);
-    }
-    .notification-panel .panel-summary {
-      background: var(--rosa-palo);
-      color: var(--crema);
-      border-radius: 8px;
-      margin-bottom: 12px;
-      padding: 10px 12px;
-    }
-    .notification-panel .panel-messages {
-      background: var(--crema);
-      border-radius: 8px;
-      padding: 10px 12px;
-    }
-    /* Otros detalles suaves */
-    ::selection {
-      background: var(--rosa-palo-oscuro);
-      color: var(--crema);
-    }
-    input, .swal2-input {
-      background: #fff;
-      border: 1px solid var(--rosa-palo-oscuro);
-      border-radius: 6px;
-      padding: 6px 10px;
-      color: var(--texto-principal);
-    }
-    input:focus, .swal2-input:focus {
-      outline: 2px solid var(--rosa-palo);
-      border-color: var(--rosa-palo);
+      font-weight: 700;
     }
     @media (max-width: 900px) {
-      .dashboard-hero,
-      .dashboard-grid {
-        grid-template-columns: 1fr;
-      }
-      .dashboard-balance {
+      .hero,
+      .dashboard-grid,
+      .kpi-row {
         grid-template-columns: 1fr;
       }
     }
   </style>
+</head>
+<body>
+  <header class="main-header">
+    <button id="toggleSidebar" class="icon-btn" aria-label="Abrir menu">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="3" y1="6" x2="21" y2="6"></line>
+        <line x1="3" y1="12" x2="21" y2="12"></line>
+        <line x1="3" y1="18" x2="21" y2="18"></line>
+      </svg>
+    </button>
+    <a href="index.html" class="logo">Flexiway</a>
+    <div class="header-actions">
+      <button id="notificationBtn" class="icon-btn" aria-label="Notificaciones">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M18 8a6 6 0 10-12 0c0 7-3 7-3 7h18s-3 0-3-7"></path>
+          <path d="M13.73 21a2 2 0 01-3.46 0"></path>
+        </svg>
+      </button>
+      <button id="profileBtn" class="icon-btn" aria-label="Perfil">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="7" r="4"></circle>
+          <path d="M5.5 21a8.38 8.38 0 0113 0"></path>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <section class="content">
+    <div class="hero">
+      <article class="hero-card">
+        <h1>Resumen general de tus finanzas</h1>
+        <p>Consulta en un solo lugar tus ingresos, gastos, ahorro posible y proximos vencimientos. Si aun no has registrado datos, todo inicia en cero.</p>
+        <div class="quick-actions">
+          <a href="registrar-gastos.html#panel-ingresos">Registrar ingresos</a>
+          <a href="registrar-gastos.html">Registrar movimientos</a>
+          <a href="analysis.html">Ver analisis</a>
+          <a href="credit.html">Revisar creditos</a>
+          <a href="savings.html">Ver ahorro</a>
+        </div>
+      </article>
+      <div class="side-summary">
+        <div class="kpi-card">
+          <div class="kpi-label">Ingresos registrados</div>
+          <div class="kpi-value" id="dashboardIncome">$0</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Gastos registrados</div>
+          <div class="kpi-value" id="dashboardExpenses">$0</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Disponible sobre presupuesto</div>
+          <div class="kpi-value" id="dashboardRemaining">$0</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="kpi-row">
+      <div class="kpi-card">
+        <div class="kpi-label">Uso del presupuesto</div>
+        <div class="kpi-value" id="budgetPercent">0%</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Ahorro posible</div>
+        <div class="kpi-value" id="possibleSavings">$0</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Riesgo de credito</div>
+        <div class="kpi-value" id="creditRisk">Bajo</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Proximo vencimiento</div>
+        <div class="kpi-value" id="dashboardNextDue">Sin vencimientos proximos</div>
+      </div>
+    </div>
+
+    <div class="dashboard-grid">
+      <article class="panel-card">
+        <h2>Distribucion del mes</h2>
+        <div style="max-width: 520px; margin: 0 auto; position: relative; min-height: 340px;">
+          <canvas id="budgetChart"></canvas>
+          <div id="chartOverlayMsg">Empieza por registrar ingresos y gastos para ver el dashboard completo.</div>
+        </div>
+      </article>
+      <article class="panel-card">
+        <h2>Lectura rapida</h2>
+        <div class="summary-list">
+          <div class="summary-item">
+            <span>Presupuesto</span>
+            <strong>Comparado con tus datos actuales</strong>
+          </div>
+          <div class="summary-item">
+            <span>Analisis</span>
+            <strong>Actualizado al guardar movimientos</strong>
+          </div>
+          <div class="summary-item">
+            <span>Alertas</span>
+            <strong>Segun vencimientos y margen disponible</strong>
+          </div>
+          <div class="summary-item">
+            <span>Perfil</span>
+            <strong>Gestion de sesion, finanzas y moneda</strong>
+          </div>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="app/supabase-config.js"></script>
+  <script src="app/finance.js"></script>
+  <script src="app/alerts.js"></script>
+  <script src="template/layout.js"></script>
+  <script src="app/dashboard.js"></script>
+</body>
 </html>

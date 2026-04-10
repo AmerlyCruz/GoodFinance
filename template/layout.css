@@ -8,124 +8,24 @@
 	padding: 6px;
 	border-radius: 50%;
 	cursor: pointer;
-	transition: background 0.2s;
+	transition: background 0.2s ease;
 	z-index: 1100;
 	display: flex;
 	align-items: center;
 	justify-content: center;
 }
+
 .close-btn:hover {
 	background: #ffe5e7;
-	box-shadow: 0 2px 8px rgba(230,57,70,0.08);
+	box-shadow: 0 2px 8px rgba(230, 57, 70, 0.08);
 }
+
 .close-btn svg {
 	stroke: #e63946;
 	width: 24px;
 	height: 24px;
 }
-/* ================= PANEL LATERAL DE PERFIL ================= */
-.profile-panel {
-	position: fixed;
-	top: 0;
-	right: -380px;
-	width: 380px;
-	height: 100%;
-	background: white;
-	box-shadow: -4px 0 20px rgba(0,0,0,0.08);
-	transition: right 0.3s ease, opacity 0.3s, visibility 0.3s;
-	z-index: 1002;
-	padding: 24px;
-	overflow-y: auto;
-	opacity: 0;
-	visibility: hidden;
-}
-.profile-panel.active {
-	right: 0;
-	opacity: 1;
-	visibility: visible;
-}
-.profile-overlay {
-	position: fixed;
-	inset: 0;
-	background: rgba(0,0,0,0.4);
-	opacity: 0;
-	pointer-events: none;
-	transition: opacity 0.3s, visibility 0.3s;
-	z-index: 1001;
-	visibility: hidden;
-}
-.profile-overlay.active {
-	opacity: 1;
-	pointer-events: auto;
-	visibility: visible;
-}
-/* ================= MEDIA QUERIES: RESPONSIVE ================= */
-/* Móvil: pantallas hasta 768px */
-@media (max-width: 768px) {
-	/* Sidebar colapsa */
-	.sidebar {
-		position: fixed;
-		left: -250px; /* escondido por defecto */
-		width: 200px;
-		z-index: 1000;
-		transition: left 0.3s ease;
-		opacity: 1;
-		visibility: visible;
-		top: 0;
-		height: 100%;
-		box-shadow: 4px 0 20px rgba(0,0,0,0.08);
-		padding: 16px 0 16px 16px;
-	}
-	.sidebar.active {
-		left: 0;
-	}
-	/* Header ajustado */
-	header, .main-header {
-		display: flex;
-		justify-content: space-between;
-		padding: 10px;
-		flex-wrap: wrap;
-	}
-	/* Mejor jerarquía visual en móvil */
-	body {
-		font-size: 15px;
-	}
-	.main-content {
-		padding: 12px;
-	}
-	section {
-		margin-bottom: 16px;
-	}
-	h1, h2, h3 {
-		margin-bottom: 8px;
-		line-height: 1.2;
-	}
-	.card, .panel, .alert {
-		border-radius: 12px;
-	}
-	/* Panel derecho se mueve debajo */
-	.notification-panel, .right-panel {
-		width: 100%;
-		margin-top: 20px;
-		right: 0;
-		left: 0;
-		box-shadow: none;
-		position: static;
-		height: auto;
-		padding: 12px;
-	}
-	/* Contenedores de tarjetas o alertas */
-	.card-container, .alerts-container, .panel-messages {
-		display: flex;
-		flex-direction: column;
-		gap: 12px;
-	}
-	/* Botones y texto más grandes para tocar */
-	button, .alert, .message {
-		font-size: 16px;
-		padding: 10px;
-	}
-}
+
 /* ================= SIDEBAR PANEL ================= */
 .sidebar {
 	position: fixed;
@@ -133,64 +33,171 @@
 	left: -320px;
 	width: 320px;
 	height: 100%;
-	background: white;
-	box-shadow: 4px 0 20px rgba(0,0,0,0.08);
-	transition: left 0.3s ease, opacity 0.3s, visibility 0.3s;
+	background: #ffffff;
+	box-shadow: 4px 0 20px rgba(0, 0, 0, 0.08);
+	transition: left 0.3s ease, opacity 0.3s ease, visibility 0.3s ease;
 	z-index: 1001;
 	padding: 24px 0 24px 24px;
 	overflow-y: auto;
 	opacity: 0;
 	visibility: hidden;
 }
+
 .sidebar.active {
 	left: 0;
 	opacity: 1;
 	visibility: visible;
 }
 
+.sidebar-header {
+	display: flex;
+	align-items: center;
+	padding: 8px 24px 22px 0;
+	margin-right: 24px;
+	border-bottom: 1px solid rgba(217, 122, 138, 0.18);
+}
+
+.sidebar .logo {
+	font-size: 2rem;
+	font-family: 'Cormorant Garamond', serif;
+	color: #b54c63;
+	letter-spacing: 0.02em;
+	text-decoration: none;
+}
+
+.nav {
+	display: grid;
+	gap: 10px;
+	padding: 22px 24px 0 0;
+}
+
+.nav-item {
+	display: flex;
+	align-items: center;
+	gap: 14px;
+	padding: 14px 16px;
+	border-radius: 18px;
+	text-decoration: none;
+	color: #3a2c2a;
+	font-weight: 700;
+	background: rgba(255, 247, 230, 0.82);
+	border: 1px solid transparent;
+	box-shadow: 0 8px 20px rgba(233, 166, 178, 0.08);
+	transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+
+.nav-item:hover {
+	transform: translateX(2px);
+	background: #fffaf7;
+	border-color: rgba(217, 122, 138, 0.24);
+	box-shadow: 0 10px 24px rgba(233, 166, 178, 0.16);
+}
+
+.nav-item.active {
+	background: linear-gradient(135deg, #fff0f3 0%, #fff7e6 100%);
+	border-color: rgba(217, 122, 138, 0.34);
+	color: #b54c63;
+}
+
+.nav-item span {
+	line-height: 1.1;
+}
+
 .overlay {
 	position: fixed;
 	inset: 0;
-	background: rgba(0,0,0,0.4);
+	background: rgba(0, 0, 0, 0.4);
 	opacity: 0;
 	pointer-events: none;
-	transition: opacity 0.3s, visibility 0.3s;
+	transition: opacity 0.3s ease, visibility 0.3s ease;
 	z-index: 1000;
 	visibility: hidden;
 }
+
 .overlay.active {
 	opacity: 1;
 	pointer-events: auto;
 	visibility: visible;
 }
 
-.notification-panel {
+/* ================= PROFILE PANEL ================= */
+.profile-panel {
+	position: fixed;
+	top: 0;
 	right: -380px;
-	visibility: hidden;
+	width: 380px;
+	height: 100%;
+	background: #ffffff;
+	box-shadow: -4px 0 20px rgba(0, 0, 0, 0.08);
+	transition: right 0.3s ease, opacity 0.3s ease, visibility 0.3s ease;
+	z-index: 1002;
+	padding: 24px;
+	overflow-y: auto;
 	opacity: 0;
-	transition: right 0.3s, opacity 0.3s, visibility 0.3s;
+	visibility: hidden;
 }
-.notification-panel.active {
+
+.profile-panel.active {
 	right: 0;
-	visibility: visible;
 	opacity: 1;
+	visibility: visible;
 }
 
-
-.notification-overlay {
+.profile-overlay {
+	position: fixed;
+	inset: 0;
+	background: rgba(0, 0, 0, 0.4);
 	opacity: 0;
 	pointer-events: none;
+	transition: opacity 0.3s ease, visibility 0.3s ease;
+	z-index: 1001;
 	visibility: hidden;
-	transition: opacity 0.3s, visibility 0.3s;
 }
-.notification-overlay.active {
+
+.profile-overlay.active {
 	opacity: 1;
 	pointer-events: auto;
 	visibility: visible;
 }
 
-/* ================= HEADER ================= */
+.profile-header h2 {
+	margin: 0 0 18px;
+	font-family: 'Cormorant Garamond', serif;
+	font-size: 2rem;
+	color: #b54c63;
+}
 
+.profile-btn {
+	border: none;
+	border-radius: 999px;
+	padding: 12px 16px;
+	background: #fff7e6;
+	color: #3a2c2a;
+	font-weight: 700;
+	cursor: pointer;
+	border: 1px solid rgba(217, 122, 138, 0.24);
+	transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+	box-shadow: 0 8px 18px rgba(233, 166, 178, 0.12);
+}
+
+.profile-btn:hover {
+	transform: translateY(-1px);
+	background: #fff0f3;
+	box-shadow: 0 10px 22px rgba(233, 166, 178, 0.18);
+}
+
+.profile-meta-row {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 12px 14px;
+	border-radius: 14px;
+	background: #fffaf7;
+	border: 1px solid rgba(217, 122, 138, 0.18);
+	color: #3a2c2a;
+}
+
+/* ================= HEADER ================= */
 .main-header {
 	height: 64px;
 	display: flex;
@@ -207,7 +214,7 @@
 .logo {
 	font-size: 18px;
 	font-weight: 600;
-	color: #1c2b3a; /* azul oscuro elegante */
+	color: #1c2b3a;
 }
 
 .icon-btn {
@@ -228,9 +235,7 @@
 	gap: 12px;
 }
 
-
-/* ================= PANEL DERECHO ================= */
-
+/* ================= NOTIFICATION PANEL ================= */
 .notification-panel {
 	position: fixed;
 	top: 0;
@@ -238,35 +243,39 @@
 	width: 380px;
 	height: 100%;
 	background: white;
-	box-shadow: -4px 0 20px rgba(0,0,0,0.08);
-	transition: right 0.3s ease;
+	box-shadow: -4px 0 20px rgba(0, 0, 0, 0.08);
+	transition: right 0.3s ease, opacity 0.3s ease, visibility 0.3s ease;
 	z-index: 1000;
 	padding: 24px;
 	overflow-y: auto;
+	opacity: 0;
+	visibility: hidden;
 }
 
 .notification-panel.active {
 	right: 0;
+	opacity: 1;
+	visibility: visible;
 }
 
 .notification-overlay {
 	position: fixed;
 	inset: 0;
-	background: rgba(0,0,0,0.4);
+	background: rgba(0, 0, 0, 0.4);
 	opacity: 0;
 	pointer-events: none;
-	transition: opacity 0.3s ease;
+	visibility: hidden;
+	transition: opacity 0.3s ease, visibility 0.3s ease;
 	z-index: 999;
 }
 
 .notification-overlay.active {
 	opacity: 1;
 	pointer-events: auto;
+	visibility: visible;
 }
 
-
-/* ================= RESUMEN ================= */
-
+/* ================= SUMMARY ================= */
 .panel-summary {
 	margin-bottom: 24px;
 }
@@ -285,9 +294,7 @@
 	margin-bottom: 6px;
 }
 
-
-/* ================= MENSAJES ================= */
-
+/* ================= MESSAGES ================= */
 .panel-messages {
 	display: flex;
 	flex-direction: column;
@@ -317,9 +324,7 @@
 	font-size: 12px;
 }
 
-
 /* ================= DOTS ================= */
-
 .dot {
 	width: 10px;
 	height: 10px;
@@ -331,9 +336,7 @@
 .yellow { background: #f4a261; }
 .green { background: #2a9d8f; }
 
-
 /* ================= TAGS ================= */
-
 .tag {
 	font-size: 11px;
 	font-weight: 600;
@@ -356,4 +359,79 @@
 .suggestion-tag {
 	background: #e6f7f3;
 	color: #0f766e;
+}
+
+/* ================= RESPONSIVE ================= */
+@media (max-width: 768px) {
+	.sidebar {
+		left: -250px;
+		width: 220px;
+		padding: 16px 0 16px 16px;
+	}
+
+	.sidebar.active {
+		left: 0;
+	}
+
+	header,
+	.main-header {
+		display: flex;
+		justify-content: space-between;
+		padding: 10px;
+		flex-wrap: wrap;
+	}
+
+	body {
+		font-size: 15px;
+	}
+
+	.main-content {
+		padding: 12px;
+	}
+
+	section {
+		margin-bottom: 16px;
+	}
+
+	h1,
+	h2,
+	h3 {
+		margin-bottom: 8px;
+		line-height: 1.2;
+	}
+
+	.card,
+	.panel,
+	.alert {
+		border-radius: 12px;
+	}
+
+	.notification-panel,
+	.right-panel,
+	.profile-panel {
+		width: 100%;
+		right: -100%;
+		left: auto;
+		box-shadow: none;
+	}
+
+	.notification-panel.active,
+	.profile-panel.active {
+		right: 0;
+	}
+
+	.card-container,
+	.alerts-container,
+	.panel-messages {
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+	}
+
+	button,
+	.alert,
+	.message {
+		font-size: 16px;
+		padding: 10px;
+	}
 }

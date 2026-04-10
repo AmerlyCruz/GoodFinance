@@ -3,26 +3,36 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Perfil</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600&family=Tinos:wght@400;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="template/components.css">
+  <title>Flexiway - Perfil</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=Tinos:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="template/layout.css">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <style>
-    body { background: #fffaf7; font-family: 'Tinos', serif; }
-    .logo { font-family: 'Cormorant Garamond', serif; font-size: 2rem; color: #e63946; margin-bottom: 24px; display: inline-block; }
-    main { background: #fff; border-radius: 18px; box-shadow: 0 2px 16px #ffd6e0; margin-top: 32px; }
-    h2 { color: #e63946; }
-    p { color: #1c2b3a; }
+    body { margin: 0; background: #fffaf7; font-family: 'Tinos', serif; color: #3a2c2a; }
+    .main-header { background: #e9a6b2; color: #fff7e6; border-bottom: 1px solid #d97a8a; }
+    .main-header .logo { color: #fff7e6; font-family: 'Cormorant Garamond', serif; font-size: 2rem; text-decoration: none; }
+    .header-actions .icon-btn { background: rgba(255,255,255,0.18); color: #fff7e6; }
+    .content { max-width: 960px; margin: 0 auto; padding: 32px 24px 48px; display: grid; gap: 22px; }
+    .profile-card { background: #fff; border-radius: 22px; border: 1px solid rgba(217,122,138,0.2); box-shadow: 0 10px 26px rgba(233,166,178,0.12); padding: 24px; }
+    .profile-card h1, .profile-card h2 { font-family: 'Cormorant Garamond', serif; margin-top: 0; }
+    .profile-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+    .profile-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+    .profile-actions a, .profile-actions button { border: none; border-radius: 999px; padding: 12px 16px; text-decoration: none; font-weight: 700; cursor: pointer; }
+    .primary { background: #e9a6b2; color: #fff7e6; }
+    .secondary { background: #fff7e6; color: #3a2c2a; border: 1px solid rgba(217,122,138,0.28); }
+    .settings-form { display: grid; gap: 12px; }
+    .settings-form label { display: grid; gap: 6px; font-weight: 700; }
+    .settings-form select { border: 1px solid rgba(217,122,138,0.35); border-radius: 12px; padding: 12px; background: #fff; color: #3a2c2a; }
+    .helper-text { margin: 0; color: #6f5a56; }
+    @media (max-width: 900px) { .profile-grid { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
   <header class="main-header">
     <button onclick="history.back()" class="icon-btn" aria-label="Volver">
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#e63946" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
     </button>
-    <a href="index.html" class="logo" style="text-decoration:none;color:inherit;cursor:pointer;">Flexiway</a>
+    <a href="index.html" class="logo">Flexiway</a>
     <div class="header-actions">
       <button id="notificationBtn" class="icon-btn" aria-label="Notificaciones">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -30,7 +40,7 @@
           <path d="M13.73 21a2 2 0 01-3.46 0"></path>
         </svg>
       </button>
-      <button class="icon-btn" aria-label="Perfil" id="profileBtn">
+      <button id="profileBtn" class="icon-btn" aria-label="Perfil">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="12" cy="7" r="4"></circle>
           <path d="M5.5 21a8.38 8.38 0 0113 0"></path>
@@ -38,61 +48,100 @@
       </button>
     </div>
   </header>
-  <main style="padding:24px;max-width:720px;margin:auto;">
-    <a href="index.html" class="logo" style="text-decoration:none;color:inherit;cursor:pointer;font-size:2rem;">Flexiway</a>
-    <h2>Mi Perfil</h2>
-    <p>Resumen demo del estado financiero actual.</p>
 
-    <section id="profileSummary" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-top:24px;"></section>
+  <section class="content">
+    <article class="profile-card">
+      <h1 id="profileName">Mi perfil</h1>
+      <p id="profileEmail">Sin sesion activa.</p>
+      <div class="profile-actions" id="profileActions"></div>
+    </article>
 
-    <section style="background:#fff7e6;border-radius:16px;padding:18px 20px;margin-top:20px;box-shadow:0 2px 12px #ffd6e0;">
-      <h3 style="margin-top:0;color:#e63946;">Lectura rápida</h3>
-      <ul id="profileInsights" style="margin:0;padding-left:18px;color:#1c2b3a;line-height:1.7;"></ul>
-    </section>
-
-    <a href="edit-profile.html" style="display:inline-flex;align-items:center;justify-content:center;margin-top:18px;padding:12px 18px;border-radius:999px;background:#e63946;color:#fff;text-decoration:none;font-weight:700;">Editar datos financieros</a>
-  </main>
-
-  <script>
-    const financialData = JSON.parse(localStorage.getItem('financialData') || '{}');
-    const profileSummary = document.getElementById('profileSummary');
-    const profileInsights = document.getElementById('profileInsights');
-
-    const spent = Number(financialData.spent) || 0;
-    const budget = Number(financialData.budget) || 0;
-    const possibleSavings = Number(financialData.possibleSavings) || 0;
-    const debts = Number(financialData.debts) || 0;
-    const creditDueInDays = Number(financialData.creditDueInDays) || 0;
-    const usage = budget > 0 ? (spent / budget) * 100 : 0;
-    const remaining = Math.max(budget - spent - possibleSavings - debts, 0);
-
-    const cards = [
-      { label: 'Presupuesto mensual', value: '$' + budget.toLocaleString() },
-      { label: 'Gasto actual', value: '$' + spent.toLocaleString() },
-      { label: 'Ahorro posible', value: '$' + possibleSavings.toLocaleString() },
-      { label: 'Uso del presupuesto', value: usage.toFixed(1) + '%' }
-    ];
-
-    profileSummary.innerHTML = cards.map((card) => `
-      <article style="background:#fff;border-radius:16px;padding:18px;box-shadow:0 2px 12px #ffd6e0;">
-        <p style="margin:0 0 8px;color:#b42318;font-weight:700;">${card.label}</p>
-        <strong style="font-size:1.5rem;color:#1c2b3a;">${card.value}</strong>
+    <div class="profile-grid">
+      <article class="profile-card">
+        <h2>Resumen financiero</h2>
+        <div id="profileFinancialSummary"></div>
       </article>
-    `).join('');
+      <article class="profile-card">
+        <h2>Estado general</h2>
+        <div id="profileState"></div>
+      </article>
+    </div>
 
-    const insights = [
-      usage >= 80
-        ? 'Tu gasto ya supera el 80% del presupuesto mensual.'
-        : 'Tu nivel de gasto todavía se mantiene bajo control.',
-      creditDueInDays > 0
-        ? `Tu próxima tarjeta vence en ${creditDueInDays} día(s).`
-        : 'No hay vencimientos de tarjeta próximos registrados.',
-      remaining > 0
-        ? `Después de gastos, ahorro y deudas todavía quedarían $${remaining.toLocaleString()} disponibles.`
-        : 'El presupuesto restante ya está comprometido por completo.'
-    ];
+    <article class="profile-card">
+      <h2>Preferencias</h2>
+      <form id="currencyForm" class="settings-form">
+        <label for="currencySelect">Moneda principal</label>
+        <select id="currencySelect" name="currency">
+          <option value="DOP">DOP - Peso dominicano</option>
+          <option value="USD">USD - Dolar estadounidense</option>
+          <option value="EUR">EUR - Euro</option>
+        </select>
+        <p class="helper-text">La moneda elegida se aplica a todos los paneles y totales.</p>
+        <button type="submit" class="primary">Guardar moneda</button>
+      </form>
+    </article>
+  </section>
 
-    profileInsights.innerHTML = insights.map((item) => `<li>${item}</li>`).join('');
+  <script src="app/supabase-config.js"></script>
+  <script src="app/finance.js"></script>
+  <script src="app/alerts.js"></script>
+  <script src="template/layout.js"></script>
+  <script>
+    function renderProfilePage() {
+      const finance = window.FlexiwayFinance;
+      const user = finance.getCurrentUser();
+      const data = finance.getFinancialData();
+      const currency = finance.getCurrencyConfig();
+      document.getElementById('profileName').textContent = user ? user.name : 'Perfil sin sesion';
+      document.getElementById('profileEmail').textContent = user ? user.email : 'Puedes crear una cuenta o iniciar sesion desde el panel de perfil.';
+      document.getElementById('currencySelect').value = currency.currency;
+
+      const summary = `
+        <p><strong>Ingresos:</strong> ${finance.formatCurrency(data.income)}</p>
+        <p><strong>Gastos:</strong> ${finance.formatCurrency(data.spent)}</p>
+        <p><strong>Presupuesto:</strong> ${finance.formatCurrency(data.budget)}</p>
+        <p><strong>Ahorro posible:</strong> ${finance.formatCurrency(data.possibleSavings)}</p>
+        <p><strong>Moneda activa:</strong> ${currency.currency}</p>
+      `;
+      document.getElementById('profileFinancialSummary').innerHTML = summary;
+
+      const nextDue = data.nextDueAccount ? `${data.nextDueAccount.name} en ${data.nextDueAccount.dueInDays} dias.` : 'Sin vencimientos registrados.';
+      document.getElementById('profileState').innerHTML = `
+        <p><strong>Proximo vencimiento:</strong> ${nextDue}</p>
+        <p><strong>Uso del presupuesto:</strong> ${finance.formatPercent(finance.generateDashboardData(data).budgetUsage)}</p>
+        <p><strong>Estado actual:</strong> los indicadores se actualizan con los datos registrados.</p>
+      `;
+
+      const actions = document.getElementById('profileActions');
+      if (user) {
+        actions.innerHTML = `
+          <a href="edit-profile.html" class="primary">Editar finanzas</a>
+          <a href="registrar-gastos.html" class="secondary">Registrar movimientos</a>
+          <button id="logoutProfile" class="secondary">Cerrar sesion</button>
+        `;
+        document.getElementById('logoutProfile').onclick = async () => {
+          await finance.logoutUser();
+          window.location.href = 'index.html';
+        };
+      } else {
+        actions.innerHTML = `
+          <a href="login.html" class="primary">Iniciar sesion</a>
+          <a href="signup.html" class="secondary">Crear cuenta</a>
+        `;
+      }
+    }
+
+    document.getElementById('currencyForm').addEventListener('submit', function(event) {
+      event.preventDefault();
+      const currency = document.getElementById('currencySelect').value;
+      window.FlexiwayFinance.saveCurrencyPreference(currency);
+      renderProfilePage();
+      window.showSuccess('Moneda actualizada.');
+    });
+
+    document.addEventListener('DOMContentLoaded', renderProfilePage);
+    window.addEventListener('flexiway:session-changed', renderProfilePage);
+    window.addEventListener('flexiway:data-updated', renderProfilePage);
   </script>
 </body>
 </html>

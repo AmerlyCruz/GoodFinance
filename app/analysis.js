@@ -1,36 +1,61 @@
-// Lógica de análisis financiero para Flexiway
-// Lee los datos de localStorage y calcula métricas para analysis.html
+let analysisChartInstance = null;
 
-function getAllGastos() {
-  const tarjetas = JSON.parse(localStorage.getItem('tarjetasCredito')||'[]');
-  const prestamos = JSON.parse(localStorage.getItem('prestamos')||'[]');
-  const servicios = JSON.parse(localStorage.getItem('servicios')||'[]');
-  const deudas = JSON.parse(localStorage.getItem('deudas')||'[]');
-  const customCats = JSON.parse(localStorage.getItem('customCats')||'[]');
-  return { tarjetas, prestamos, servicios, deudas, customCats };
-}
+function renderAnalysisPage() {
+  if (!window.FlexiwayFinance) return;
+  const summary = window.FlexiwayFinance.getExpenseSummary();
+  const breakdown = summary.breakdown;
+  const formatter = window.FlexiwayFinance.formatCurrency;
 
-function calcularResumenGastos() {
-  const { tarjetas, prestamos, servicios, deudas, customCats } = getAllGastos();
-  let totalTarjetas = tarjetas.reduce((acc, t) => acc + (Number(t.monto)||0), 0);
-  let totalPrestamos = prestamos.reduce((acc, p) => acc + (Number(p.monto)||0), 0);
-  let totalServicios = servicios.reduce((acc, s) => acc + (Number(s.monto)||0), 0);
-  let totalDeudas = deudas.reduce((acc, d) => acc + (Number(d.monto)||0), 0);
-  let totalCustom = customCats.reduce((acc, c) => acc + (Number(c.monto)||0), 0);
-  let totalGastos = totalTarjetas + totalPrestamos + totalServicios + totalDeudas + totalCustom;
-  return {
-    totalTarjetas, totalPrestamos, totalServicios, totalDeudas, totalCustom, totalGastos
+  const mapping = {
+    cards: "kpi-tarjetas",
+    loans: "kpi-prestamos",
+    services: "kpi-servicios",
+    debts: "kpi-deudas",
+    custom: "kpi-custom"
   };
+
+  breakdown.forEach((item) => {
+    const element = document.getElementById(mapping[item.key]);
+    if (element) element.textContent = formatter(item.total);
+  });
+
+  const totalElement = document.getElementById("kpi-total");
+    if (totalElement) totalElement.textContent = formatter(summary.totalExpenses);
+
+  const emptyState = document.getElementById("analysisEmptyState");
+    if (emptyState) {
+      emptyState.hidden = summary.totalExpenses > 0;
+    }
+
+  const canvas = document.getElementById("gastosChart");
+    if (!canvas || typeof Chart === "undefined") return;
+
+    if (analysisChartInstance) analysisChartInstance.destroy();
+
+    analysisChartInstance = new Chart(canvas, {
+      type: "pie",
+      data: {
+        labels: breakdown.map((item) => item.label),
+        datasets: [{
+          data: breakdown.map((item) => item.total),
+          backgroundColor: breakdown.map((item) => item.color),
+          borderWidth: 0
+        }]
+      },
+      options: {
+        plugins: {
+          legend: { position: "bottom" },
+          tooltip: {
+            callbacks: {
+              label(context) {
+                return `${context.label}: ${formatter(context.parsed)}`;
+              }
+            }
+          }
+        }
+      }
+    });
 }
 
-function mostrarKPIs() {
-  const resumen = calcularResumenGastos();
-  if(document.getElementById('kpi-tarjetas')) document.getElementById('kpi-tarjetas').textContent = '$' + resumen.totalTarjetas.toLocaleString();
-  if(document.getElementById('kpi-prestamos')) document.getElementById('kpi-prestamos').textContent = '$' + resumen.totalPrestamos.toLocaleString();
-  if(document.getElementById('kpi-servicios')) document.getElementById('kpi-servicios').textContent = '$' + resumen.totalServicios.toLocaleString();
-  if(document.getElementById('kpi-deudas')) document.getElementById('kpi-deudas').textContent = '$' + resumen.totalDeudas.toLocaleString();
-  if(document.getElementById('kpi-custom')) document.getElementById('kpi-custom').textContent = '$' + resumen.totalCustom.toLocaleString();
-  if(document.getElementById('kpi-total')) document.getElementById('kpi-total').textContent = '$' + resumen.totalGastos.toLocaleString();
-}
-
-document.addEventListener('DOMContentLoaded', mostrarKPIs);
+document.addEventListener("DOMContentLoaded", renderAnalysisPage);
+window.addEventListener("flexiway:data-updated", renderAnalysisPage);

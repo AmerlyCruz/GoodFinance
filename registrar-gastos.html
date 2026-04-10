@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Registrar Gastos</title>
+  <title>Flexiway - Registrar movimientos</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600&family=Tinos:wght@400;700&display=swap" rel="stylesheet">
@@ -11,9 +11,9 @@
   <link rel="stylesheet" href="template/layout.css">
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <style>
-    body { background: #fffaf7; font-family: 'Tinos', serif; }
+    body { margin: 0; background: #fffaf7; font-family: 'Tinos', serif; color: #3a2c2a; }
     .logo { font-family: 'Cormorant Garamond', serif; font-size: 2rem; color: #e63946; margin-bottom: 24px; display: inline-block; }
-    main { background: #fff; border-radius: 18px; box-shadow: 0 2px 16px #ffd6e0; margin-top: 32px; padding: 32px 16px; max-width: 900px; }
+    main { background: #fff; border-radius: 18px; box-shadow: 0 2px 16px #ffd6e0; margin: 32px auto 0; padding: 32px 16px; max-width: 980px; }
     .gastos-grid { display: flex; flex-wrap: wrap; gap: 24px; margin-top: 24px; }
     .gasto-card { background: #fff7e6; border-radius: 16px; box-shadow: 0 2px 8px #ffd6e0; padding: 24px 18px 18px 18px; min-width: 220px; flex: 1 1 260px; position: relative; }
     .gasto-card h3 { color: #e63946; font-size: 1.2em; margin-bottom: 12px; }
@@ -22,6 +22,18 @@
     .custom-cat-btn { background: #b5ead7; color: #222; border: none; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer; position: absolute; top: 16px; right: 16px; }
     .enlace-analisis { color: #e63946; text-decoration: underline; cursor: pointer; font-weight: 600; }
     .enlace-analisis:hover { color: #b42318; }
+    .income-panel { background: linear-gradient(135deg, #edf9f2 0%, #fff7e6 100%); border: 1px solid rgba(56,176,0,0.16); border-radius: 18px; padding: 22px; box-shadow: 0 8px 24px rgba(56,176,0,0.08); }
+    .income-toolbar { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 16px; }
+    .income-toolbar h3 { margin: 0 0 8px; color: #248232; font-size: 1.35rem; }
+    .income-toolbar p { margin: 0; color: #4e5d52; max-width: 60ch; }
+    .income-add-btn { border: none; border-radius: 999px; background: #38b000; color: #fff; padding: 12px 18px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 8px 18px rgba(56,176,0,0.18); }
+    .income-add-btn svg { width: 18px; height: 18px; }
+    .income-summary { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 14px; }
+    .income-pill { background: #fff; border: 1px solid rgba(56,176,0,0.18); border-radius: 999px; padding: 10px 14px; font-weight: 700; color: #248232; }
+    .income-list { display: grid; gap: 10px; }
+    .income-item { background: #ffffff; border-radius: 12px; padding: 12px 14px; box-shadow: 0 1px 4px #b5ead7; position: relative; border: 1px solid rgba(56,176,0,0.1); }
+    .income-item strong { display: block; margin-bottom: 4px; }
+    @media (max-width: 760px) { .income-toolbar { flex-direction: column; } .income-add-btn { width: 100%; justify-content: center; } }
   </style>
 </head>
 <body>
@@ -52,13 +64,22 @@
     </div>
   </header>
   <main>
-    <h2>Registrar Gastos</h2>
-    <p>Registra tus tarjetas, préstamos, servicios, deudas y más. <span class="enlace-analisis" onclick="window.location.href='analysis.html'">Ver análisis</span></p>
-    <button class="add-btn" style="margin-bottom:18px;background:#38b000;" onclick="agregarIngreso()">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-      Registrar ingreso
-    </button>
-    <div id="ingresos-lista"></div>
+    <h2>Registrar movimientos</h2>
+    <p>Registra ingresos, tarjetas, préstamos, servicios y deudas desde un solo lugar. <span class="enlace-analisis" onclick="window.location.href='analysis.html'">Ver análisis</span></p>
+    <section id="panel-ingresos" class="income-panel">
+      <div class="income-toolbar">
+        <div>
+          <h3>Ingresos</h3>
+          <p>Agrega salario, ventas u otras entradas para alimentar el dashboard, el ahorro y el análisis mensual.</p>
+        </div>
+        <button class="income-add-btn" onclick="agregarIngreso()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          Registrar ingreso
+        </button>
+      </div>
+      <div id="ingresos-summary" class="income-summary"></div>
+      <div id="ingresos-lista" class="income-list"></div>
+    </section>
     <div class="gastos-grid">
     <script>
     // --- INGRESOS ---
@@ -67,20 +88,29 @@
     }
     function setIngresos(arr) {
       localStorage.setItem('ingresos', JSON.stringify(arr));
+      if (window.FlexiwayFinance) window.FlexiwayFinance.dispatchDataUpdate();
     }
     function renderIngresos() {
       const lista = document.getElementById('ingresos-lista');
+      const summary = document.getElementById('ingresos-summary');
       const ingresos = getIngresos();
       if (!lista) return;
-      lista.innerHTML = '<h3 style="color:#38b000;margin-bottom:8px;">Ingresos registrados</h3>';
+      const total = ingresos.reduce((acc, item) => acc + Number(item.monto || 0), 0);
+      if (summary) {
+        summary.innerHTML = `
+          <div class="income-pill">${ingresos.length} ingreso(s)</div>
+          <div class="income-pill">Total registrado: $${total.toLocaleString()}</div>
+        `;
+      }
+      lista.innerHTML = '';
       if (ingresos.length === 0) {
-        lista.innerHTML += '<p style="color:#888">No hay ingresos registrados.</p>';
+        lista.innerHTML = '<div class="income-item"><strong>Sin ingresos registrados</strong><span style="color:#6f7a70;">Empieza agregando tu primer ingreso para que el presupuesto y el ahorro se calculen correctamente.</span></div>';
         return;
       }
       ingresos.forEach((ing, i) => {
         const div = document.createElement('div');
-        div.style = 'background:#e9f7ef;border-radius:10px;padding:10px 10px 10px 18px;margin-bottom:8px;box-shadow:0 1px 4px #b5ead7;position:relative;';
-        div.innerHTML = '<strong>' + (ing.descripcion||'Ingreso') + '</strong> - $' + ing.monto.toLocaleString() + ' (' + ing.fecha + ')' +
+        div.className = 'income-item';
+        div.innerHTML = '<strong>' + (ing.descripcion||'Ingreso') + '</strong><span>' + '$' + ing.monto.toLocaleString() + ' · ' + ing.fecha + '</span>' +
           '<button onclick="eliminarIngreso(' + i + ')" title="Eliminar" style="position:absolute;top:8px;right:8px;background:none;border:none;cursor:pointer;color:#38b000;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#38b000" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>';
         lista.appendChild(div);
       });
@@ -188,6 +218,7 @@
     }
     function setTarjetas(arr) {
       localStorage.setItem('tarjetasCredito', JSON.stringify(arr));
+      if (window.FlexiwayFinance) window.FlexiwayFinance.dispatchDataUpdate();
     }
     function renderTarjetas() {
       const lista = document.getElementById('tarjetas-lista');
@@ -297,6 +328,7 @@
     }
     function setPrestamos(arr) {
       localStorage.setItem('prestamos', JSON.stringify(arr));
+      if (window.FlexiwayFinance) window.FlexiwayFinance.dispatchDataUpdate();
     }
     function renderPrestamos() {
       const lista = document.getElementById('prestamos-lista');
@@ -407,6 +439,7 @@
     }
     function setServicios(arr) {
       localStorage.setItem('servicios', JSON.stringify(arr));
+      if (window.FlexiwayFinance) window.FlexiwayFinance.dispatchDataUpdate();
     }
     function renderServicios() {
       const lista = document.getElementById('servicios-lista');
@@ -512,6 +545,7 @@
     }
     function setDeudas(arr) {
       localStorage.setItem('deudas', JSON.stringify(arr));
+      if (window.FlexiwayFinance) window.FlexiwayFinance.dispatchDataUpdate();
     }
     function renderDeudas() {
       const lista = document.getElementById('deudas-lista');
@@ -622,6 +656,7 @@
     }
     function setCustomCats(arr) {
       localStorage.setItem('customCats', JSON.stringify(arr));
+      if (window.FlexiwayFinance) window.FlexiwayFinance.dispatchDataUpdate();
     }
     function renderCustomCats() {
       const lista = document.getElementById('custom-cat-lista');
@@ -723,5 +758,9 @@
     renderDeudas();
     renderCustomCats();
   </script>
+  <script src="app/supabase-config.js"></script>
+  <script src="app/finance.js"></script>
+  <script src="app/alerts.js"></script>
+  <script src="template/layout.js"></script>
 </body>
 </html>
