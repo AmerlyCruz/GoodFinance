@@ -8,7 +8,8 @@ const FlexiwayFinance = (() => {
 		custom: "customCats",
 		financialData: "financialData",
 		user: "flexiwayUser",
-		session: "flexiwaySession"
+		session: "flexiwaySession",
+		rememberedLogin: "flexiwayRememberedLogin"
 	};
 
 	const CATEGORY_STORAGE_MAP = {
@@ -69,11 +70,32 @@ const FlexiwayFinance = (() => {
 		const config = window.FLEXIWAY_SUPABASE_CONFIG || {};
 		const url = String(config.url || "").trim();
 		const anonKey = String(config.anonKey || "").trim();
+		const siteUrl = String(config.siteUrl || "").trim();
 		return {
 			enabled: Boolean(url && anonKey),
 			url,
-			anonKey
+			anonKey,
+			siteUrl
 		};
+	}
+
+	function getAppBaseUrl() {
+		const configuredSiteUrl = getBackendConfig().siteUrl;
+		if (configuredSiteUrl) return configuredSiteUrl.replace(/\/+$/, "");
+
+		if (window.location.protocol !== "http:" && window.location.protocol !== "https:") {
+			return "";
+		}
+
+		const pathname = window.location.pathname || "/";
+		const lastSlashIndex = pathname.lastIndexOf("/");
+		const basePath = lastSlashIndex >= 0 ? pathname.slice(0, lastSlashIndex + 1) : "/";
+		return `${window.location.origin}${basePath}`.replace(/\/+$/, "");
+	}
+
+	function getEmailRedirectUrl() {
+		const baseUrl = getAppBaseUrl();
+		return baseUrl ? `${baseUrl}/login.html` : undefined;
 	}
 
 	function isBackendConfigured() {
@@ -326,6 +348,32 @@ const FlexiwayFinance = (() => {
 		if (!session || !user) return null;
 		if (session.email && user.email && session.email !== user.email) return null;
 		return user;
+	}
+
+	function getRememberedLogin() {
+		const stored = readJSON(STORAGE_KEYS.rememberedLogin, null);
+		if (!stored || typeof stored !== "object") return null;
+		return {
+			email: String(stored.email || "").trim(),
+			password: String(stored.password || ""),
+			enabled: Boolean(stored.enabled && stored.email)
+		};
+	}
+
+	function saveRememberedLogin(email, password, enabled) {
+		if (!enabled) {
+			localStorage.removeItem(STORAGE_KEYS.rememberedLogin);
+			return null;
+		}
+
+		const payload = {
+			email: String(email || "").trim().toLowerCase(),
+			password: String(password || ""),
+			enabled: true,
+			updatedAt: new Date().toISOString()
+		};
+		writeJSON(STORAGE_KEYS.rememberedLogin, payload);
+		return payload;
 	}
 
 	function getStorageSnapshot() {
@@ -654,11 +702,13 @@ const FlexiwayFinance = (() => {
 
 		if (isBackendConfigured()) {
 			const client = await getSupabaseClient();
+			const emailRedirectTo = getEmailRedirectUrl();
 			const { data, error } = await client.auth.signUp({
 				email: payload.email,
 				password: payload.password,
 				options: {
-					data: { name: payload.name }
+					data: { name: payload.name },
+					...(emailRedirectTo ? { emailRedirectTo } : {})
 				}
 			});
 
@@ -764,6 +814,8 @@ const FlexiwayFinance = (() => {
 		getCreditSummary,
 		getCurrentUser,
 		getRegisteredUser,
+		getRememberedLogin,
+		saveRememberedLogin,
 		signUpUser,
 		loginUser,
 		logoutUser,

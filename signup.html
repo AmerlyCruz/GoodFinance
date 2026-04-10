@@ -17,7 +17,12 @@
     h1 { font-family: 'Cormorant Garamond', serif; font-size: 2.6rem; margin-top: 0; }
     form { display: grid; gap: 14px; }
     label { display: grid; gap: 6px; font-weight: 700; }
-    input { border: 1px solid rgba(217,122,138,0.4); border-radius: 10px; padding: 12px; }
+    input { width: 100%; box-sizing: border-box; border: 1px solid rgba(217,122,138,0.4); border-radius: 10px; padding: 12px; }
+    .password-field { position: relative; }
+    .password-field input { padding-right: 52px; }
+    .password-toggle { position: absolute; top: 50%; right: 10px; transform: translateY(-50%); width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; border: none; border-radius: 999px; background: rgba(233,166,178,0.12); color: #8d5260; cursor: pointer; }
+    .password-toggle:hover { background: rgba(233,166,178,0.2); }
+    .password-toggle svg { pointer-events: none; }
     button[type="submit"] { border: none; border-radius: 999px; padding: 12px 16px; background: #e9a6b2; color: #fff7e6; font-weight: 700; cursor: pointer; }
   </style>
 </head>
@@ -48,9 +53,31 @@
       <h1>Crear cuenta</h1>
       <form id="signupForm">
         <label>Nombre<input name="name" required></label>
-        <label>Email<input name="email" type="email" required></label>
-        <label>Contrasena<input name="password" type="password" required></label>
-        <label>Confirmar contrasena<input name="confirmPassword" type="password" required></label>
+        <label>Email<input name="email" type="email" autocomplete="email username" required></label>
+        <label>
+          Contrasena
+          <span class="password-field">
+            <input id="signupPassword" name="password" type="password" autocomplete="new-password" required>
+            <button type="button" class="password-toggle" data-toggle-password="signupPassword" aria-label="Mostrar contrasena" aria-pressed="false">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z"></path>
+                <circle cx="12" cy="12" r="3"></circle>
+              </svg>
+            </button>
+          </span>
+        </label>
+        <label>
+          Confirmar contrasena
+          <span class="password-field">
+            <input id="signupConfirmPassword" name="confirmPassword" type="password" autocomplete="new-password" required>
+            <button type="button" class="password-toggle" data-toggle-password="signupConfirmPassword" aria-label="Mostrar contrasena" aria-pressed="false">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z"></path>
+                <circle cx="12" cy="12" r="3"></circle>
+              </svg>
+            </button>
+          </span>
+        </label>
         <button type="submit">Crear cuenta</button>
       </form>
     </article>
@@ -61,6 +88,16 @@
   <script src="app/alerts.js"></script>
   <script src="template/layout.js"></script>
   <script>
+    document.querySelectorAll('[data-toggle-password]').forEach(function(button) {
+      button.addEventListener('click', function() {
+        const input = document.getElementById(button.dataset.togglePassword);
+        const isVisible = input.type === 'text';
+        input.type = isVisible ? 'password' : 'text';
+        button.setAttribute('aria-label', isVisible ? 'Mostrar contrasena' : 'Ocultar contrasena');
+        button.setAttribute('aria-pressed', String(!isVisible));
+      });
+    });
+
     document.getElementById('signupForm').addEventListener('submit', async function(event) {
       event.preventDefault();
       const payload = Object.fromEntries(new FormData(this).entries());

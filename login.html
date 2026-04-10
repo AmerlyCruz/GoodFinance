@@ -18,7 +18,15 @@
     .card p { margin-top: 0; color: #6f5a56; }
     form { display: grid; gap: 14px; }
     label { display: grid; gap: 6px; font-weight: 700; }
-    input { border: 1px solid rgba(217,122,138,0.4); border-radius: 10px; padding: 12px; }
+    input { width: 100%; box-sizing: border-box; border: 1px solid rgba(217,122,138,0.4); border-radius: 10px; padding: 12px; }
+    .password-field { position: relative; }
+    .password-field input { padding-right: 52px; }
+    .password-toggle { position: absolute; top: 50%; right: 10px; transform: translateY(-50%); width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; border: none; border-radius: 999px; background: rgba(233,166,178,0.12); color: #8d5260; cursor: pointer; }
+    .password-toggle:hover { background: rgba(233,166,178,0.2); }
+    .password-toggle svg { pointer-events: none; }
+    .remember-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: #6f5a56; font-size: 0.95rem; }
+    .remember-check { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; cursor: pointer; }
+    .remember-check input { width: auto; margin: 0; accent-color: #b54c63; }
     button[type="submit"] { border: none; border-radius: 999px; padding: 12px 16px; background: #e9a6b2; color: #fff7e6; font-weight: 700; cursor: pointer; }
     .signup-link { margin-top: 14px; text-align: center; }
     .signup-link a { color: #b54c63; font-weight: 700; text-decoration: none; }
@@ -51,8 +59,25 @@
       <h1>Iniciar sesion</h1>
       <p>Accede a tu perfil para conservar tus preferencias y revisar tus paneles con la moneda elegida.</p>
       <form id="loginForm">
-        <label>Email<input name="email" type="email" required></label>
-        <label>Contrasena<input name="password" type="password" required></label>
+        <label>Email<input name="email" type="email" autocomplete="email username" required></label>
+        <label>
+          Contrasena
+          <span class="password-field">
+            <input id="loginPassword" name="password" type="password" autocomplete="current-password" required>
+            <button type="button" class="password-toggle" data-toggle-password="loginPassword" aria-label="Mostrar contrasena" aria-pressed="false">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z"></path>
+                <circle cx="12" cy="12" r="3"></circle>
+              </svg>
+            </button>
+          </span>
+        </label>
+        <div class="remember-row">
+          <label class="remember-check" for="rememberLogin">
+            <input id="rememberLogin" name="rememberLogin" type="checkbox">
+            Recordar usuario y contrasena
+          </label>
+        </div>
         <button type="submit">Entrar</button>
       </form>
       <div class="signup-link"><a href="signup.html">Crear cuenta</a></div>
@@ -64,6 +89,26 @@
   <script src="app/alerts.js"></script>
   <script src="template/layout.js"></script>
   <script>
+    document.querySelectorAll('[data-toggle-password]').forEach(function(button) {
+      button.addEventListener('click', function() {
+        const input = document.getElementById(button.dataset.togglePassword);
+        const isVisible = input.type === 'text';
+        input.type = isVisible ? 'password' : 'text';
+        button.setAttribute('aria-label', isVisible ? 'Mostrar contrasena' : 'Ocultar contrasena');
+        button.setAttribute('aria-pressed', String(!isVisible));
+      });
+    });
+
+    document.addEventListener('DOMContentLoaded', function() {
+      const remembered = window.FlexiwayFinance.getRememberedLogin();
+      if (!remembered || !remembered.enabled) return;
+
+      const form = document.getElementById('loginForm');
+      form.elements.email.value = remembered.email || '';
+      form.elements.password.value = remembered.password || '';
+      form.elements.rememberLogin.checked = true;
+    });
+
     document.getElementById('loginForm').addEventListener('submit', async function(event) {
       event.preventDefault();
       const payload = Object.fromEntries(new FormData(this).entries());
@@ -72,6 +117,7 @@
         window.showError(result.message);
         return;
       }
+      window.FlexiwayFinance.saveRememberedLogin(payload.email, payload.password, this.elements.rememberLogin.checked);
       window.showSuccess('Sesion iniciada.');
       window.location.href = 'profile.html';
     });

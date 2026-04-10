@@ -7,7 +7,15 @@
 5. Abre `app/supabase-config.js` y pega:
    - `url`: Project URL
    - `anonKey`: anon public key
+   - `siteUrl`: URL publica base donde corre la app, por ejemplo `https://tudominio.com` o `https://tudominio.com/flexiway`
 6. Recarga la app.
+
+## Confirmacion por correo
+
+- Si Supabase envia enlaces a `localhost`, el problema esta en la URL de redireccion usada por Auth.
+- Flexiway ahora intenta enviar la confirmacion a `siteUrl/login.html`.
+- Si `siteUrl` esta vacio, la app usa la URL HTTP(S) actual del navegador como base.
+- En Supabase Authentication > URL Configuration debes registrar esa URL publica en `Site URL` o `Redirect URLs`.
 
 ## Comportamiento
 
