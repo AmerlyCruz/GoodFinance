@@ -61,10 +61,18 @@
   <script src="app/alerts.js"></script>
   <script src="template/layout.js"></script>
   <script>
-    const data = window.FlexiwayFinance.getFinancialData();
-    ['budget', 'creditDueInDays', 'possibleSavings', 'debts'].forEach((key) => {
-      const field = document.querySelector(`[name="${key}"]`);
-      if (field) field.value = data[key] || 0;
+    document.addEventListener('DOMContentLoaded', async function() {
+      await window.FlexiwayFinance.ensureSessionReady();
+      if (!window.FlexiwayFinance.getCurrentUser()) {
+        window.location.href = 'login.html';
+        return;
+      }
+
+      const data = window.FlexiwayFinance.getFinancialData();
+      ['budget', 'creditDueInDays', 'possibleSavings', 'debts'].forEach((key) => {
+        const field = document.querySelector(`[name="${key}"]`);
+        if (field) field.value = data[key] || 0;
+      });
     });
 
     document.getElementById('editProfileForm').addEventListener('submit', function(event) {

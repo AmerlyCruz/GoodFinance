@@ -17,12 +17,31 @@
     .kpi-row, .grid { display: grid; gap: 18px; }
     .kpi-row { grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 28px 0; }
     .grid { grid-template-columns: 0.95fr 1.05fr; }
+    .planner-grid { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 18px; margin-top: 18px; }
     .kpi-card, .panel-card { background: #fff7e6; border-radius: 20px; padding: 22px; border: 1px solid rgba(217,122,138,0.24); box-shadow: 0 10px 28px rgba(233,166,178,0.12); }
     .kpi-label { color: #d97a8a; font-family: 'Cormorant Garamond', serif; font-size: 1.15rem; margin-bottom: 8px; }
     .kpi-value { font-size: 1.5rem; font-weight: 700; }
     .panel-card h2 { margin-top: 0; font-family: 'Cormorant Garamond', serif; font-size: 2rem; }
     .panel-messages { gap: 14px; }
-    @media (max-width: 900px) { .kpi-row, .grid { grid-template-columns: 1fr; } }
+    .planner-toolbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; margin-bottom: 16px; }
+    .planner-field { display: grid; gap: 6px; flex: 1 1 220px; }
+    .planner-field label { font-weight: 700; color: #7e4a54; }
+    .planner-field input, .planner-field select { border: 1px solid rgba(217,122,138,0.28); border-radius: 14px; padding: 12px 14px; background: #fffdf8; font: inherit; }
+    .planner-save { border: none; border-radius: 999px; background: #d97a8a; color: #fff; padding: 12px 18px; cursor: pointer; font-weight: 700; }
+    .plan-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+    .plan-card { background: #fffdf8; border-radius: 18px; padding: 18px; border: 1px solid rgba(217,122,138,0.2); position: relative; }
+    .plan-card.is-active { border-color: #d97a8a; box-shadow: 0 10px 24px rgba(217,122,138,0.16); }
+    .plan-card h3 { margin: 0 0 6px; font-family: 'Cormorant Garamond', serif; font-size: 1.7rem; }
+    .plan-chip { display: inline-flex; border-radius: 999px; padding: 5px 10px; background: #ffe3ea; color: #9b3f55; font-size: 0.82rem; font-weight: 700; margin-bottom: 10px; }
+    .plan-active-flag { display: inline-flex; margin-left: 8px; border-radius: 999px; padding: 5px 10px; background: #d97a8a; color: #fff; font-size: 0.78rem; font-weight: 700; }
+    .plan-card ul, .tips-list, .history-list { list-style: none; padding: 0; margin: 14px 0 0; }
+    .plan-card li, .tips-list li, .history-list li { background: #fff; border-radius: 14px; padding: 12px 14px; border: 1px solid rgba(217,122,138,0.12); margin-bottom: 10px; }
+    .history-list li:last-child, .tips-list li:last-child, .plan-card li:last-child { margin-bottom: 0; }
+    .plan-warning { background: #fff1d6; color: #855600; border-radius: 12px; padding: 10px 12px; margin-top: 12px; }
+    .history-list small, .tips-list small { display: block; margin-top: 4px; color: #6c5a58; }
+    .empty-copy { color: #8e6b72; }
+    @media (max-width: 1100px) { .plan-cards { grid-template-columns: 1fr; } }
+    @media (max-width: 900px) { .kpi-row, .grid, .planner-grid { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
@@ -70,6 +89,45 @@
       <article class="panel-card">
         <h2>Detalle de cuentas</h2>
         <div id="creditAccountList" class="panel-messages"></div>
+      </article>
+    </div>
+
+    <div class="planner-grid">
+      <article class="panel-card">
+        <h2>Planificador de abonos</h2>
+        <p>Registra cuánto puedes dedicar al mes a tus deudas y revisa tres rutas de ataque: regular, media y agresiva.</p>
+        <div class="planner-toolbar">
+          <div class="planner-field">
+            <label for="debtStrategyMode">Modo activo</label>
+            <select id="debtStrategyMode">
+              <option value="regular">Regular</option>
+              <option value="medium">Medio</option>
+              <option value="aggressive">Agresivo</option>
+            </select>
+          </div>
+          <div class="planner-field">
+            <label for="debtPaymentCapacity">Capacidad mensual de abono</label>
+            <input id="debtPaymentCapacity" type="number" min="0" step="0.01" placeholder="Ejemplo: 12000">
+          </div>
+          <button id="saveDebtCapacity" class="planner-save">Guardar capacidad</button>
+        </div>
+        <div id="debtPlans" class="plan-cards"></div>
+      </article>
+      <article class="panel-card">
+        <h2>Como reducir gastos</h2>
+        <p>Estas recomendaciones buscan liberar efectivo para acelerar la erradicación de deuda.</p>
+        <ul id="expenseCutTips" class="tips-list"></ul>
+      </article>
+    </div>
+
+    <div class="planner-grid">
+      <article class="panel-card">
+        <h2>Histórico de registros y pagos</h2>
+        <ul id="creditMovementHistory" class="history-list"></ul>
+      </article>
+      <article class="panel-card">
+        <h2>Prioridad sugerida</h2>
+        <div id="prioritySummary" class="panel-messages"></div>
       </article>
     </div>
   </section>

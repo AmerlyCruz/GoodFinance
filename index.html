@@ -140,6 +140,11 @@
       border-bottom: none;
       padding-bottom: 0;
     }
+    .summary-item small {
+      display: block;
+      margin-top: 4px;
+      color: #6f5a55;
+    }
     #chartOverlayMsg {
       display: none;
       position: absolute;
@@ -248,19 +253,24 @@
         <div class="summary-list">
           <div class="summary-item">
             <span>Presupuesto</span>
-            <strong>Comparado con tus datos actuales</strong>
+            <strong id="dashboardBudgetStatus">Comparado con tus datos actuales</strong>
           </div>
           <div class="summary-item">
-            <span>Analisis</span>
-            <strong>Actualizado al guardar movimientos</strong>
+            <span>Deuda prioritaria</span>
+            <strong id="dashboardPriorityDebt">Sin prioridad definida</strong>
           </div>
           <div class="summary-item">
-            <span>Alertas</span>
-            <strong>Segun vencimientos y margen disponible</strong>
+            <span>Pagos registrados este mes</span>
+            <strong id="dashboardPaymentsThisMonth">0 pagos</strong>
           </div>
           <div class="summary-item">
-            <span>Perfil</span>
-            <strong>Gestion de sesion, finanzas y moneda</strong>
+            <span>Capacidad para deudas</span>
+            <strong id="dashboardDebtCapacity">No definida</strong>
+            <small id="dashboardDebtProjection">Define un monto mensual para estimar salida de deuda.</small>
+          </div>
+          <div class="summary-item">
+            <span>Ultimo movimiento</span>
+            <strong id="dashboardLastMovement">Aun sin registros</strong>
           </div>
         </div>
       </article>

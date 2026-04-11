@@ -74,6 +74,14 @@ function ensureProfilePanel() {
 	document.body.appendChild(wrapper.lastElementChild);
 }
 
+function ensureStatusChip() {
+	if (document.getElementById("appSyncStatus")) return;
+	const chip = document.createElement("div");
+	chip.id = "appSyncStatus";
+	chip.className = "app-sync-status";
+	document.body.appendChild(chip);
+}
+
 function getProfileButton() {
 	return document.getElementById("profileBtn") || document.querySelector('[aria-label="Perfil"]');
 }
@@ -141,6 +149,16 @@ function renderProfilePanel() {
 	}
 }
 
+function renderSyncStatus() {
+	if (!window.FlexiwayFinance || typeof window.FlexiwayFinance.getSyncStatus !== "function") return;
+	const chip = document.getElementById("appSyncStatus");
+	if (!chip) return;
+	const status = window.FlexiwayFinance.getSyncStatus();
+	chip.className = `app-sync-status ${status.state || "idle"}`;
+	chip.textContent = status.message || "Listo";
+	chip.hidden = !status.message;
+}
+
 function bindSidebar() {
 	const sidebar = document.getElementById("sidebar");
 	const overlay = document.getElementById("overlay");
@@ -206,11 +224,16 @@ function bindProfilePanel() {
 	}
 }
 
-function initLayout() {
+async function initLayout() {
+	if (window.FlexiwayFinance && typeof window.FlexiwayFinance.ensureSessionReady === "function") {
+		await window.FlexiwayFinance.ensureSessionReady();
+	}
 	ensureSidebar();
 	ensureNotificationPanel();
 	ensureProfilePanel();
+	ensureStatusChip();
 	renderProfilePanel();
+	renderSyncStatus();
 	if (window.FlexiwayAlerts) {
 		window.FlexiwayAlerts.renderNotificationPanel();
 		window.FlexiwayAlerts.maybeShowStartupAlert();
@@ -227,9 +250,12 @@ function initLayout() {
 document.addEventListener("DOMContentLoaded", initLayout);
 window.addEventListener("flexiway:data-updated", () => {
 	renderProfilePanel();
+	renderSyncStatus();
 	if (window.FlexiwayAlerts) window.FlexiwayAlerts.renderNotificationPanel();
 });
 window.addEventListener("flexiway:session-changed", () => {
 	renderProfilePanel();
+	renderSyncStatus();
 	if (window.FlexiwayAlerts) window.FlexiwayAlerts.renderNotificationPanel();
 });
+window.addEventListener("flexiway:sync-status", renderSyncStatus);

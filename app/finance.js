@@ -27,6 +27,8 @@ const FlexiwayFinance = (() => {
 		EUR: { locale: "es-ES", label: "Euro" }
 	};
 
+	const DEBT_STRATEGY_MODES = ["regular", "medium", "aggressive"];
+
 	const EXPENSE_GROUPS = [
 		{ key: "cards", label: "Tarjetas", storageKey: STORAGE_KEYS.cards, color: "#ffd6e0", dateFields: ["fechaCorte", "fechaPago", "fecha"] },
 		{ key: "loans", label: "Prestamos", storageKey: STORAGE_KEYS.loans, color: "#c7ceea", dateFields: ["fechaPago", "fecha"] },
@@ -40,7 +42,14 @@ const FlexiwayFinance = (() => {
 		libraryPromise: null,
 		clientPromise: null,
 		syncTimeout: null,
-		hydrationPromise: null
+		hydrationPromise: null,
+		initPromise: Promise.resolve(),
+		syncStatus: {
+			state: "idle",
+			message: "Listo",
+			updatedAt: new Date().toISOString()
+		},
+		statusTimeout: null
 	};
 
 	function readJSON(key, fallback) {
@@ -56,6 +65,47 @@ const FlexiwayFinance = (() => {
 		localStorage.setItem(key, JSON.stringify(value));
 	}
 
+	function createStableId(prefix) {
+		return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+	}
+
+	function getCollectionPrefix(storageKey) {
+		const mapping = {
+			[STORAGE_KEYS.incomes]: "income",
+			[STORAGE_KEYS.cards]: "card",
+			[STORAGE_KEYS.loans]: "loan",
+			[STORAGE_KEYS.services]: "service",
+			[STORAGE_KEYS.debts]: "debt",
+			[STORAGE_KEYS.custom]: "custom"
+		};
+		return mapping[storageKey] || "item";
+	}
+
+	function getFinanceOwnerKey() {
+		const session = readJSON(STORAGE_KEYS.session, null);
+		const owner = session?.userId || session?.email || "";
+		return String(owner).trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "-");
+	}
+
+	function getScopedFinanceKey(key) {
+		const owner = getFinanceOwnerKey();
+		if (!owner) return "";
+		return `flexiway:${owner}:${key}`;
+	}
+
+	function readFinanceJSON(key, fallback) {
+		const scopedKey = getScopedFinanceKey(key);
+		if (!scopedKey) return fallback;
+		return readJSON(scopedKey, fallback);
+	}
+
+	function writeFinanceJSON(key, value) {
+		const scopedKey = getScopedFinanceKey(key);
+		if (!scopedKey) return false;
+		writeJSON(scopedKey, value);
+		return true;
+	}
+
 	function toNumber(value) {
 		const parsed = Number(value);
 		return Number.isFinite(parsed) ? parsed : 0;
@@ -64,6 +114,11 @@ const FlexiwayFinance = (() => {
 	function normalizeCurrency(value) {
 		const code = String(value || "").trim().toUpperCase();
 		return CURRENCY_CONFIG[code] ? code : "DOP";
+	}
+
+	function normalizeDebtStrategyMode(value) {
+		const mode = String(value || "").trim().toLowerCase();
+		return DEBT_STRATEGY_MODES.includes(mode) ? mode : "medium";
 	}
 
 	function getBackendConfig() {
@@ -151,7 +206,7 @@ const FlexiwayFinance = (() => {
 	}
 
 	function getStoredFinancialData() {
-		return readJSON(STORAGE_KEYS.financialData, {}) || {};
+		return readFinanceJSON(STORAGE_KEYS.financialData, {}) || {};
 	}
 
 	function getCurrencyPreference() {
@@ -180,9 +235,264 @@ const FlexiwayFinance = (() => {
 		return `${toNumber(value).toFixed(1)}%`;
 	}
 
+	function updateSyncStatus(state, message, options) {
+		backendState.syncStatus = {
+			state: state || "idle",
+			message: String(message || "Listo"),
+			updatedAt: new Date().toISOString()
+		};
+		window.dispatchEvent(new CustomEvent("flexiway:sync-status", {
+			detail: backendState.syncStatus
+		}));
+		window.clearTimeout(backendState.statusTimeout);
+		if (options && options.autoReset) {
+			backendState.statusTimeout = window.setTimeout(() => {
+				updateSyncStatus(options.resetState || "idle", options.resetMessage || "Listo");
+			}, options.autoReset);
+		}
+		return backendState.syncStatus;
+	}
+
+	function getSyncStatus() {
+		return { ...backendState.syncStatus };
+	}
+
+	function sanitizePaymentHistory(history, itemId) {
+		if (!Array.isArray(history)) return [];
+		return history
+			.map((entry, index) => ({
+				id: entry.id || `${itemId || "payment"}-${index + 1}`,
+				amount: Math.max(toNumber(entry.amount), 0),
+				date: entry.date || entry.fecha || getTodayDate(),
+				note: String(entry.note || entry.nota || "").trim(),
+				remainingAmount: Math.max(toNumber(entry.remainingAmount ?? entry.restante), 0),
+				previousAmount: Math.max(toNumber(entry.previousAmount ?? entry.anterior), 0),
+				type: entry.type || entry.tipo || "partial"
+			}))
+			.filter((entry) => entry.amount > 0)
+			.sort((left, right) => String(left.date).localeCompare(String(right.date)));
+	}
+
+	function normalizeCollectionItemForStorage(storageKey, item, index) {
+		if (!item || typeof item !== "object") return item;
+		const normalized = { ...item };
+		if (!normalized.id) {
+			normalized.id = createStableId(getCollectionPrefix(storageKey));
+		}
+		if (!normalized.createdAt) {
+			normalized.createdAt = normalized.fecha || normalized.fechaPago || normalized.fechaCorte || getTodayDate();
+		}
+		if ([STORAGE_KEYS.cards, STORAGE_KEYS.loans, STORAGE_KEYS.debts].includes(storageKey)) {
+			normalized.paymentHistory = sanitizePaymentHistory(normalized.paymentHistory || normalized.historialPagos, normalized.id);
+		}
+		return normalized;
+	}
+
+	function normalizeCollectionForStorage(storageKey, items) {
+		if (!Array.isArray(items)) return [];
+		return items.map((item, index) => normalizeCollectionItemForStorage(storageKey, item, index));
+	}
+
 	function getCollection(storageKey) {
-		const items = readJSON(storageKey, []);
-		return Array.isArray(items) ? items : [];
+		const items = readFinanceJSON(storageKey, []);
+		const payload = normalizeCollectionForStorage(storageKey, Array.isArray(items) ? items : []);
+		if (JSON.stringify(payload) !== JSON.stringify(items || [])) {
+			writeFinanceJSON(storageKey, payload);
+		}
+		return payload;
+	}
+
+	function saveCollection(storageKey, items, options) {
+		const shouldDispatch = !options || options.dispatch !== false;
+		const payload = normalizeCollectionForStorage(storageKey, Array.isArray(items) ? items : []);
+		const written = writeFinanceJSON(storageKey, payload);
+		if (written && shouldDispatch) dispatchDataUpdate();
+		return written;
+	}
+
+	function getTodayDate() {
+		return new Date().toISOString().slice(0, 10);
+	}
+
+	function getCreditCategoryMeta(category) {
+		const mapping = {
+			cards: { storageKey: STORAGE_KEYS.cards, type: "Tarjeta", dueFields: ["fechaCorte", "fechaPago", "fecha"] },
+			loans: { storageKey: STORAGE_KEYS.loans, type: "Prestamo", dueFields: ["fechaPago", "fecha"] },
+			debts: { storageKey: STORAGE_KEYS.debts, type: "Deuda", dueFields: ["fechaPago", "fecha"] }
+		};
+		return mapping[category] || null;
+	}
+
+	function getCreditCategories() {
+		return ["cards", "loans", "debts"];
+	}
+
+	function normalizeCreditItem(category, item, index) {
+		const meta = getCreditCategoryMeta(category);
+		const raw = item && typeof item === "object" ? item : {};
+		const currentAmount = Math.max(toNumber(raw.monto), 0);
+		const originalAmount = Math.max(toNumber(raw.originalMonto), currentAmount);
+		const minimumPayment = Math.max(toNumber(raw.pagoMinimo), 0);
+		const paymentHistory = sanitizePaymentHistory(raw.paymentHistory || raw.historialPagos, raw.id || `${category}-${index}`);
+		const paidAmount = paymentHistory.reduce((total, entry) => total + entry.amount, 0);
+		const dueDate = meta ? meta.dueFields.map((field) => raw[field]).find(Boolean) || "" : "";
+		const status = currentAmount <= 0 ? "paid" : raw.status === "paid" ? "paid" : "active";
+		const createdAt = raw.createdAt || raw.fechaRegistro || dueDate || getTodayDate();
+
+		return {
+			...raw,
+			id: raw.id || `${category}-${index}-${createdAt}`,
+			nombre: raw.nombre || raw.descripcion || meta?.type || "Cuenta",
+			monto: currentAmount,
+			originalMonto: originalAmount,
+			pagoMinimo: minimumPayment,
+			paymentHistory,
+			status,
+			createdAt,
+			paidAmount,
+			type: meta?.type || "Cuenta",
+			dueDate,
+			dueInDays: daysUntil(dueDate),
+			progress: originalAmount > 0 ? Math.min((paidAmount / originalAmount) * 100, 100) : 0
+		};
+	}
+
+	function getCreditAccounts() {
+		const accounts = [];
+		getCreditCategories().forEach((category) => {
+			const meta = getCreditCategoryMeta(category);
+			getCollection(meta.storageKey).forEach((item, index) => {
+				const normalized = normalizeCreditItem(category, item, index);
+				accounts.push({
+					category,
+					storageKey: meta.storageKey,
+					index,
+					name: normalized.nombre,
+					amount: normalized.monto,
+					originalAmount: normalized.originalMonto,
+					minimumPayment: normalized.pagoMinimo,
+					rate: toNumber(normalized.tasa),
+					dueDate: normalized.dueDate,
+					dueInDays: normalized.dueInDays,
+					status: normalized.status,
+					type: normalized.type,
+					createdAt: normalized.createdAt,
+					paymentHistory: normalized.paymentHistory,
+					paidAmount: normalized.paidAmount,
+					progress: normalized.progress,
+					raw: normalized
+				});
+			});
+		});
+		return accounts;
+	}
+
+	function setCollectionByCategory(category, items) {
+		const meta = getCreditCategoryMeta(category);
+		if (!meta) throw new Error("Categoria de credito no soportada.");
+		saveCollection(meta.storageKey, items);
+		return items;
+	}
+
+	function saveDebtPaymentCapacity(amount) {
+		const current = getStoredFinancialData();
+		writeFinanceJSON(STORAGE_KEYS.financialData, {
+			...current,
+			debtPaymentCapacity: Math.max(toNumber(amount), 0)
+		});
+		dispatchDataUpdate();
+		return Math.max(toNumber(amount), 0);
+	}
+
+	function getDebtPaymentCapacity() {
+		return Math.max(toNumber(getStoredFinancialData().debtPaymentCapacity), 0);
+	}
+
+	function getDebtStrategyMode() {
+		return normalizeDebtStrategyMode(getStoredFinancialData().debtStrategyMode);
+	}
+
+	function saveDebtStrategyMode(mode) {
+		const current = getStoredFinancialData();
+		const normalizedMode = normalizeDebtStrategyMode(mode);
+		writeFinanceJSON(STORAGE_KEYS.financialData, {
+			...current,
+			debtStrategyMode: normalizedMode
+		});
+		dispatchDataUpdate();
+		return normalizedMode;
+	}
+
+	function updateCreditItem(category, index, updater) {
+		const meta = getCreditCategoryMeta(category);
+		if (!meta) {
+			return { ok: false, message: "Categoria de credito no soportada." };
+		}
+
+		const items = getCollection(meta.storageKey);
+		if (!items[index]) {
+			return { ok: false, message: "No se encontro la cuenta seleccionada." };
+		}
+
+		const current = normalizeCreditItem(category, items[index], index);
+		let updated;
+		try {
+			updated = updater(current);
+		} catch (error) {
+			return { ok: false, message: error.message || "No se pudo actualizar la cuenta." };
+		}
+		const persisted = { ...updated };
+		delete persisted.type;
+		delete persisted.dueDate;
+		delete persisted.dueInDays;
+		delete persisted.progress;
+		delete persisted.paidAmount;
+		items[index] = persisted;
+		setCollectionByCategory(category, items);
+		return { ok: true, account: normalizeCreditItem(category, persisted, index) };
+	}
+
+	function recordDebtPayment(category, index, paymentData) {
+		return updateCreditItem(category, index, (current) => {
+			const amount = Math.max(toNumber(paymentData?.amount), 0);
+			if (amount <= 0) {
+				throw new Error("El abono debe ser mayor que cero.");
+			}
+
+			const appliedAmount = Math.min(amount, current.monto);
+			const remainingAmount = Math.max(current.monto - appliedAmount, 0);
+			const entryDate = paymentData?.date || getTodayDate();
+			const entry = {
+				id: `${current.id}-payment-${Date.now()}`,
+				amount: appliedAmount,
+				date: entryDate,
+				note: String(paymentData?.note || "").trim(),
+				previousAmount: current.monto,
+				remainingAmount,
+				type: remainingAmount === 0 ? "full" : "partial"
+			};
+
+			return {
+				...current,
+				monto: remainingAmount,
+				lastPaymentDate: entryDate,
+				lastPaymentAmount: appliedAmount,
+				paymentHistory: [...current.paymentHistory, entry],
+				status: remainingAmount === 0 ? "paid" : "active"
+			};
+		});
+	}
+
+	function markDebtAsPaid(category, index, paymentData) {
+		const accounts = getCreditAccounts();
+		const account = accounts.find((item) => item.category === category && item.index === index);
+		if (!account || account.amount <= 0) {
+			return { ok: false, message: "La cuenta ya no tiene saldo pendiente." };
+		}
+		return recordDebtPayment(category, index, {
+			...paymentData,
+			amount: account.amount
+		});
 	}
 
 	function getCollections() {
@@ -246,37 +556,8 @@ const FlexiwayFinance = (() => {
 	}
 
 	function getNextDueAccount() {
-		const creditAccounts = [];
-		getCollection(STORAGE_KEYS.cards).forEach((item) => {
-			creditAccounts.push({
-				type: "Tarjeta",
-				name: item.nombre || "Tarjeta",
-				amount: toNumber(item.monto),
-				rate: toNumber(item.tasa),
-				dueDate: item.fechaCorte || item.fechaPago || item.fecha || ""
-			});
-		});
-		getCollection(STORAGE_KEYS.loans).forEach((item) => {
-			creditAccounts.push({
-				type: "Prestamo",
-				name: item.nombre || "Prestamo",
-				amount: toNumber(item.monto),
-				rate: toNumber(item.tasa),
-				dueDate: item.fechaPago || item.fecha || ""
-			});
-		});
-		getCollection(STORAGE_KEYS.debts).forEach((item) => {
-			creditAccounts.push({
-				type: "Deuda",
-				name: item.nombre || "Deuda",
-				amount: toNumber(item.monto),
-				rate: toNumber(item.tasa),
-				dueDate: item.fechaPago || item.fecha || ""
-			});
-		});
-
-		const withDueDays = creditAccounts
-			.map((account) => ({ ...account, dueInDays: daysUntil(account.dueDate) }))
+		const withDueDays = getCreditAccounts()
+			.filter((account) => account.amount > 0)
 			.filter((account) => account.dueInDays !== null)
 			.sort((left, right) => left.dueInDays - right.dueInDays);
 
@@ -303,6 +584,8 @@ const FlexiwayFinance = (() => {
 			creditDueInDays: nextDue ? Math.max(nextDue.dueInDays, 0) : toNumber(stored.creditDueInDays),
 			possibleSavings,
 			debts: debtLoad,
+			debtPaymentCapacity: Math.max(toNumber(stored.debtPaymentCapacity), 0),
+			debtStrategyMode: normalizeDebtStrategyMode(stored.debtStrategyMode),
 			income,
 			nextDueAccount: nextDue,
 			expenseSummary
@@ -389,26 +672,90 @@ const FlexiwayFinance = (() => {
 		};
 	}
 
+	function getRemoteItemDetails(item) {
+		const details = { ...(item || {}) };
+		delete details.type;
+		delete details.dueDate;
+		delete details.dueInDays;
+		delete details.progress;
+		delete details.paidAmount;
+		return details;
+	}
+
 	function mapCollectionItem(category, item) {
+		const normalizedItem = item && typeof item === "object" ? item : {};
+		const itemKey = normalizedItem.id || createStableId(category);
+		const paymentHistory = sanitizePaymentHistory(normalizedItem.paymentHistory || normalizedItem.historialPagos, itemKey);
 		return {
+			item_key: itemKey,
 			category,
-			name: item.nombre || item.descripcion || category,
-			amount: toNumber(item.monto),
-			rate: item.tasa === null || item.tasa === undefined || item.tasa === "" ? null : toNumber(item.tasa),
-			due_date: item.fechaPago || item.fechaCorte || null,
-			event_date: item.fecha || item.fechaPago || item.fechaCorte || null,
-			details: item
+			name: normalizedItem.nombre || normalizedItem.descripcion || category,
+			amount: toNumber(normalizedItem.monto),
+			original_amount: Math.max(toNumber(normalizedItem.originalMonto), toNumber(normalizedItem.monto)),
+			minimum_payment: Math.max(toNumber(normalizedItem.pagoMinimo), 0),
+			paid_amount: paymentHistory.reduce((total, entry) => total + toNumber(entry.amount), 0),
+			rate: normalizedItem.tasa === null || normalizedItem.tasa === undefined || normalizedItem.tasa === "" ? null : toNumber(normalizedItem.tasa),
+			due_date: normalizedItem.fechaPago || normalizedItem.fechaCorte || null,
+			event_date: normalizedItem.fecha || normalizedItem.fechaPago || normalizedItem.fechaCorte || null,
+			status: normalizedItem.status || (toNumber(normalizedItem.monto) <= 0 ? "paid" : "active"),
+			details: getRemoteItemDetails({ ...normalizedItem, id: itemKey, paymentHistory })
 		};
+	}
+
+	function mapPaymentRows(snapshot, userId) {
+		const rows = [];
+		getCreditCategories().forEach((category) => {
+			(snapshot[category] || []).forEach((item) => {
+				const itemKey = item.id || null;
+				if (!itemKey) return;
+				sanitizePaymentHistory(item.paymentHistory || item.historialPagos, itemKey).forEach((entry) => {
+					rows.push({
+						user_id: userId,
+						payment_key: entry.id || createStableId(`${itemKey}-payment`),
+						item_key: itemKey,
+						category,
+						amount: toNumber(entry.amount),
+						payment_date: entry.date || getTodayDate(),
+						note: String(entry.note || "").trim(),
+						previous_amount: toNumber(entry.previousAmount),
+						remaining_amount: toNumber(entry.remainingAmount),
+						payment_type: entry.type || "partial"
+					});
+				});
+			});
+		});
+		return rows;
+	}
+
+	function buildPaymentLookup(paymentRows) {
+		const lookup = new Map();
+		(paymentRows || []).forEach((row) => {
+			const itemKey = String(row.item_key || "").trim();
+			if (!itemKey) return;
+			const entries = lookup.get(itemKey) || [];
+			entries.push({
+				id: row.payment_key || (row.id ? `payment-${row.id}` : `${itemKey}-${entries.length + 1}`),
+				amount: toNumber(row.amount),
+				date: row.payment_date || row.date || getTodayDate(),
+				note: String(row.note || "").trim(),
+				previousAmount: toNumber(row.previous_amount),
+				remainingAmount: toNumber(row.remaining_amount),
+				type: row.payment_type || "partial"
+			});
+			lookup.set(itemKey, entries);
+		});
+		return lookup;
 	}
 
 	function writeCollectionsToLocal(snapshot) {
 		Object.entries(CATEGORY_STORAGE_MAP).forEach(([category, storageKey]) => {
-			writeJSON(storageKey, snapshot[category] || []);
+			saveCollection(storageKey, snapshot[category] || [], { dispatch: false });
 		});
-		writeJSON(STORAGE_KEYS.financialData, snapshot.financialData || {});
+		writeFinanceJSON(STORAGE_KEYS.financialData, snapshot.financialData || {});
 	}
 
-	function buildRemoteSnapshot(profileRow, itemRows) {
+	function buildRemoteSnapshot(profileRow, itemRows, paymentRows) {
+		const paymentLookup = buildPaymentLookup(paymentRows);
 		const snapshot = {
 			incomes: [],
 			cards: [],
@@ -421,6 +768,8 @@ const FlexiwayFinance = (() => {
 				creditDueInDays: toNumber(profileRow?.credit_due_in_days),
 				possibleSavings: toNumber(profileRow?.possible_savings),
 				debts: toNumber(profileRow?.debts),
+				debtPaymentCapacity: toNumber(profileRow?.debt_payment_capacity),
+				debtStrategyMode: normalizeDebtStrategyMode(profileRow?.debt_strategy_mode),
 				currency: normalizeCurrency(profileRow?.currency)
 			}
 		};
@@ -429,15 +778,22 @@ const FlexiwayFinance = (() => {
 			const category = row.category;
 			if (!snapshot[category]) return;
 			const original = row.details && typeof row.details === "object" ? row.details : {};
+			const paymentHistory = paymentLookup.get(String(row.item_key || "").trim())
+				|| sanitizePaymentHistory(original.paymentHistory || original.historialPagos);
 			snapshot[category].push({
 				...original,
+				id: original.id || row.item_key || undefined,
 				nombre: original.nombre || row.name || undefined,
 				descripcion: original.descripcion || row.name || undefined,
 				monto: toNumber(original.monto ?? row.amount),
+				originalMonto: Math.max(toNumber(original.originalMonto ?? row.original_amount), toNumber(original.monto ?? row.amount)),
+				pagoMinimo: toNumber(original.pagoMinimo ?? row.minimum_payment),
 				tasa: original.tasa ?? row.rate,
 				fecha: original.fecha || row.event_date || undefined,
 				fechaPago: original.fechaPago || row.due_date || undefined,
-				fechaCorte: original.fechaCorte || row.due_date || undefined
+				fechaCorte: original.fechaCorte || row.due_date || undefined,
+				status: original.status || row.status || undefined,
+				paymentHistory
 			});
 		});
 
@@ -448,14 +804,87 @@ const FlexiwayFinance = (() => {
 		if (!snapshot) return false;
 		const hasItems = Object.keys(CATEGORY_STORAGE_MAP).some((category) => (snapshot[category] || []).length > 0);
 		const financialData = snapshot.financialData || {};
-		const hasFinancialState = ["budget", "creditDueInDays", "possibleSavings", "debts"]
+		const hasFinancialState = ["budget", "creditDueInDays", "possibleSavings", "debts", "debtPaymentCapacity"]
 			.some((key) => toNumber(financialData[key]) > 0);
-		return hasItems || hasFinancialState;
+		const hasStrategyState = normalizeDebtStrategyMode(financialData.debtStrategyMode) !== "medium";
+		return hasItems || hasFinancialState || hasStrategyState;
+	}
+
+	async function upsertRemoteProfile(client, payload) {
+		let result = await client.from("user_profiles").upsert(payload, { onConflict: "user_id" });
+		if (!result.error) return result;
+
+		if (/(debt_payment_capacity|debt_strategy_mode)/i.test(String(result.error.message || ""))) {
+			const legacyPayload = { ...payload };
+			delete legacyPayload.debt_payment_capacity;
+			delete legacyPayload.debt_strategy_mode;
+			result = await client.from("user_profiles").upsert(legacyPayload, { onConflict: "user_id" });
+		}
+
+		return result;
+	}
+
+	function buildInFilter(values) {
+		return `(${values.map((value) => `"${String(value).replace(/"/g, '\\"')}"`).join(",")})`;
+	}
+
+	async function deleteRemoteKeys(client, table, userId, column, keys) {
+		if (keys.length === 0) {
+			return client.from(table).delete().eq("user_id", userId);
+		}
+		return client.from(table).delete().eq("user_id", userId).not(column, "in", buildInFilter(keys));
+	}
+
+	async function syncRemoteFinanceItems(client, userId, itemRows) {
+		const itemKeys = itemRows.map((row) => row.item_key).filter(Boolean);
+		let result = await client.from("finance_items").upsert(itemRows, { onConflict: "user_id,item_key" });
+		if (!result.error) {
+			const deleteResult = await deleteRemoteKeys(client, "finance_items", userId, "item_key", itemKeys);
+			return deleteResult.error || result.error ? (deleteResult.error ? deleteResult : result) : result;
+		}
+
+		if (/(item_key|original_amount|minimum_payment|paid_amount|status)/i.test(String(result.error.message || ""))) {
+			await client.from("finance_items").delete().eq("user_id", userId);
+			const legacyRows = itemRows.map(({ item_key, original_amount, minimum_payment, paid_amount, status, ...rest }) => rest);
+			result = legacyRows.length > 0 ? await client.from("finance_items").insert(legacyRows) : { error: null };
+		}
+
+		return result;
+	}
+
+	async function syncRemotePaymentRows(client, userId, paymentRows) {
+		const paymentKeys = paymentRows.map((row) => row.payment_key).filter(Boolean);
+		let result = paymentRows.length > 0
+			? await client.from("finance_item_payments").upsert(paymentRows, { onConflict: "user_id,payment_key" })
+			: { error: null };
+		if (!result.error) {
+			const deleteResult = await deleteRemoteKeys(client, "finance_item_payments", userId, "payment_key", paymentKeys);
+			if (deleteResult.error) {
+				console.warn("No se pudieron limpiar pagos remotos obsoletos.", deleteResult.error);
+				return deleteResult;
+			}
+			return result;
+		}
+
+		if (/payment_key/i.test(String(result.error.message || ""))) {
+			const deleteResult = await client.from("finance_item_payments").delete().eq("user_id", userId);
+			if (deleteResult.error) {
+				console.warn("No se pudo sincronizar la tabla de pagos en Supabase.", deleteResult.error);
+				return deleteResult;
+			}
+			const legacyRows = paymentRows.map(({ payment_key, ...rest }) => rest);
+			result = legacyRows.length > 0 ? await client.from("finance_item_payments").insert(legacyRows) : { error: null };
+		}
+		if (result.error) {
+			console.warn("No se pudieron sincronizar los pagos en Supabase.", result.error);
+		}
+		return result;
 	}
 
 	async function hydrateRemoteState() {
 		if (!isBackendConfigured()) return null;
 		if (backendState.hydrationPromise) return backendState.hydrationPromise;
+		updateSyncStatus("loading", "Cargando datos...");
 
 		backendState.hydrationPromise = (async () => {
 			const client = await getSupabaseClient();
@@ -470,25 +899,45 @@ const FlexiwayFinance = (() => {
 
 			saveSessionCache(authUser);
 
-			const [{ data: profileRow }, { data: itemRows }] = await Promise.all([
+			const [profileResult, itemResult, paymentResult] = await Promise.all([
 				client.from("user_profiles").select("*").eq("user_id", authUser.id).maybeSingle(),
-				client.from("finance_items").select("category,name,amount,rate,due_date,event_date,details").eq("user_id", authUser.id).order("created_at", { ascending: true })
+				client.from("finance_items").select("*").eq("user_id", authUser.id).order("created_at", { ascending: true }),
+				client.from("finance_item_payments").select("*").eq("user_id", authUser.id).order("payment_date", { ascending: true })
 			]);
 
-			const snapshot = buildRemoteSnapshot(profileRow, itemRows || []);
+			if (itemResult.error) {
+				throw itemResult.error;
+			}
+			if (paymentResult.error) {
+				console.warn("No se pudo leer la tabla de pagos en Supabase.", paymentResult.error);
+			}
+
+			const profileRow = profileResult.data || null;
+			const itemRows = itemResult.data || [];
+			const paymentRows = paymentResult.data || [];
+
+			const snapshot = buildRemoteSnapshot(profileRow, itemRows, paymentRows);
 			const localSnapshot = getStorageSnapshot();
-			if (!profileRow && (!itemRows || itemRows.length === 0) && hasMeaningfulSnapshot(localSnapshot)) {
+			const remoteHasMeaningfulState = hasMeaningfulSnapshot(snapshot);
+			const localHasMeaningfulState = hasMeaningfulSnapshot(localSnapshot);
+			if (localHasMeaningfulState && !remoteHasMeaningfulState) {
+				updateSyncStatus("syncing", "Sincronizando datos locales...");
 				await persistRemoteState();
 				window.dispatchEvent(new CustomEvent("flexiway:data-updated", { detail: getFinancialData() }));
+				updateSyncStatus("synced", "Datos sincronizados", { autoReset: 2200 });
 				return localSnapshot;
 			}
 			writeCollectionsToLocal(snapshot);
 			window.dispatchEvent(new CustomEvent("flexiway:data-updated", { detail: getFinancialData() }));
+			updateSyncStatus("synced", "Datos cargados", { autoReset: 1800 });
 			return snapshot;
 		})();
 
 		try {
 			return await backendState.hydrationPromise;
+		} catch (error) {
+			updateSyncStatus("error", "Error al cargar datos");
+			throw error;
 		} finally {
 			backendState.hydrationPromise = null;
 		}
@@ -502,10 +951,11 @@ const FlexiwayFinance = (() => {
 		const { data: authData } = await client.auth.getUser();
 		const authUser = authData?.user;
 		if (!authUser) return;
+		updateSyncStatus("syncing", "Guardando cambios...");
 
 		const snapshot = getStorageSnapshot();
 		const financialData = snapshot.financialData || {};
-		await client.from("user_profiles").upsert({
+		const profileResult = await upsertRemoteProfile(client, {
 			user_id: authUser.id,
 			name: snapshot.user?.name || authUser.user_metadata?.name || authUser.email?.split("@")[0] || "Usuario",
 			email: authUser.email,
@@ -514,10 +964,11 @@ const FlexiwayFinance = (() => {
 			credit_due_in_days: toNumber(financialData.creditDueInDays),
 			possible_savings: toNumber(financialData.possibleSavings),
 			debts: toNumber(financialData.debts),
+			debt_payment_capacity: toNumber(financialData.debtPaymentCapacity),
+			debt_strategy_mode: normalizeDebtStrategyMode(financialData.debtStrategyMode),
 			updated_at: new Date().toISOString()
-		}, { onConflict: "user_id" });
-
-		await client.from("finance_items").delete().eq("user_id", authUser.id);
+		});
+		if (profileResult.error) throw profileResult.error;
 
 		const itemRows = [];
 		Object.keys(CATEGORY_STORAGE_MAP).forEach((category) => {
@@ -528,17 +979,24 @@ const FlexiwayFinance = (() => {
 				});
 			});
 		});
+		const paymentRows = mapPaymentRows(snapshot, authUser.id);
 
-		if (itemRows.length > 0) {
-			await client.from("finance_items").insert(itemRows);
-		}
+		const itemInsertResult = await syncRemoteFinanceItems(client, authUser.id, itemRows);
+		if (itemInsertResult.error) throw itemInsertResult.error;
+		const paymentResult = await syncRemotePaymentRows(client, authUser.id, paymentRows);
+		if (paymentResult.error) throw paymentResult.error;
+		updateSyncStatus("synced", "Cambios guardados", { autoReset: 2000 });
 	}
 
 	function scheduleRemoteSync() {
-		if (!isBackendConfigured()) return;
+		if (!isBackendConfigured()) {
+			updateSyncStatus("local", "Modo local");
+			return;
+		}
 		window.clearTimeout(backendState.syncTimeout);
 		backendState.syncTimeout = window.setTimeout(() => {
 			persistRemoteState().catch((error) => {
+				updateSyncStatus("error", "No se pudo sincronizar");
 				console.error("No se pudo sincronizar con Supabase.", error);
 			});
 		}, 500);
@@ -552,16 +1010,17 @@ const FlexiwayFinance = (() => {
 			creditDueInDays: toNumber(data.creditDueInDays),
 			possibleSavings: toNumber(data.possibleSavings),
 			debts: toNumber(data.debts),
+			debtStrategyMode: normalizeDebtStrategyMode(data.debtStrategyMode || current.debtStrategyMode),
 			currency: normalizeCurrency(data.currency || current.currency)
 		};
-		writeJSON(STORAGE_KEYS.financialData, payload);
+		writeFinanceJSON(STORAGE_KEYS.financialData, payload);
 		dispatchDataUpdate();
 		return getFinancialData();
 	}
 
 	function saveCurrencyPreference(currency) {
 		const current = getStoredFinancialData();
-		writeJSON(STORAGE_KEYS.financialData, {
+		writeFinanceJSON(STORAGE_KEYS.financialData, {
 			...current,
 			currency: normalizeCurrency(currency)
 		});
@@ -659,16 +1118,7 @@ const FlexiwayFinance = (() => {
 	}
 
 	function getCreditSummary() {
-		const accounts = [];
-		getCollection(STORAGE_KEYS.cards).forEach((item) => {
-			accounts.push({ type: "Tarjeta", name: item.nombre || "Tarjeta", amount: toNumber(item.monto), rate: toNumber(item.tasa), dueDate: item.fechaCorte || item.fechaPago || "" });
-		});
-		getCollection(STORAGE_KEYS.loans).forEach((item) => {
-			accounts.push({ type: "Prestamo", name: item.nombre || "Prestamo", amount: toNumber(item.monto), rate: toNumber(item.tasa), dueDate: item.fechaPago || "" });
-		});
-		getCollection(STORAGE_KEYS.debts).forEach((item) => {
-			accounts.push({ type: "Deuda", name: item.nombre || "Deuda", amount: toNumber(item.monto), rate: toNumber(item.tasa), dueDate: item.fechaPago || "" });
-		});
+		const accounts = getCreditAccounts().filter((account) => account.amount > 0 || account.paymentHistory.length > 0);
 
 		const exposure = accounts.reduce((total, account) => total + account.amount, 0);
 		const accountsWithRate = accounts.filter((account) => account.rate > 0);
@@ -676,7 +1126,7 @@ const FlexiwayFinance = (() => {
 			? accountsWithRate.reduce((total, account) => total + account.rate, 0) / accountsWithRate.length
 			: 0;
 		const nextDue = accounts
-			.map((account) => ({ ...account, dueInDays: daysUntil(account.dueDate) }))
+			.filter((account) => account.amount > 0)
 			.filter((account) => account.dueInDays !== null)
 			.sort((left, right) => left.dueInDays - right.dueInDays)[0] || null;
 
@@ -693,6 +1143,213 @@ const FlexiwayFinance = (() => {
 		};
 	}
 
+	function compareAccountsForPlan(mode, left, right) {
+		const leftUrgent = left.dueInDays !== null && left.dueInDays <= 7 ? 1 : 0;
+		const rightUrgent = right.dueInDays !== null && right.dueInDays <= 7 ? 1 : 0;
+		if (leftUrgent !== rightUrgent) return rightUrgent - leftUrgent;
+
+		if (mode === "regular") {
+			if (left.amount !== right.amount) return left.amount - right.amount;
+			if (left.rate !== right.rate) return right.rate - left.rate;
+		} else if (mode === "aggressive") {
+			if (left.rate !== right.rate) return right.rate - left.rate;
+			if (left.amount !== right.amount) return right.amount - left.amount;
+		} else {
+			const leftScore = (left.rate * 1.3) + (left.dueInDays !== null ? Math.max(30 - left.dueInDays, 0) : 0) + (left.amount / 1000);
+			const rightScore = (right.rate * 1.3) + (right.dueInDays !== null ? Math.max(30 - right.dueInDays, 0) : 0) + (right.amount / 1000);
+			if (leftScore !== rightScore) return rightScore - leftScore;
+		}
+
+		if ((left.dueInDays ?? 9999) !== (right.dueInDays ?? 9999)) {
+			return (left.dueInDays ?? 9999) - (right.dueInDays ?? 9999);
+		}
+		return left.name.localeCompare(right.name);
+	}
+
+	function getExpenseReductionSuggestions() {
+		const collections = getCollections();
+		const suggestions = [];
+		const serviceTotal = sumAmounts(collections.services);
+		const customTotal = sumAmounts(collections.custom);
+		const topServices = [...collections.services]
+			.sort((left, right) => toNumber(right.monto) - toNumber(left.monto))
+			.slice(0, 2);
+		const topCustom = [...collections.custom]
+			.sort((left, right) => toNumber(right.monto) - toNumber(left.monto))
+			.slice(0, 2);
+
+		if (serviceTotal > 0) {
+			suggestions.push({
+				title: "Ajusta servicios fijos",
+				text: `Tus servicios suman ${formatCurrency(serviceTotal)}. Revisa ${topServices.map((item) => item.nombre || "servicio").join(" y ")} para renegociar o pausar.`
+			});
+		}
+
+		if (customTotal > 0) {
+			suggestions.push({
+				title: "Recorta gastos variables",
+				text: `Las categorias personalizadas representan ${formatCurrency(customTotal)}. Empieza por ${topCustom.map((item) => item.nombre || "categoria").join(" y ")}.`
+			});
+		}
+
+		if (suggestions.length === 0) {
+			suggestions.push({
+				title: "Sigue registrando",
+				text: "Mientras mas gastos clasifiques, mas precisas seran las sugerencias para liberar dinero y acelerar el pago de deudas."
+			});
+		}
+
+		return suggestions;
+	}
+
+	function getDebtActionPlan(mode, capacityOverride) {
+		const normalizedMode = normalizeDebtStrategyMode(mode);
+		const modeMeta = {
+			regular: {
+				label: "Regular",
+				description: "Prioriza victorias rapidas y protege liquidez.",
+				strategy: "Bola de nieve guiada",
+				multiplier: 1
+			},
+			medium: {
+				label: "Medio",
+				description: "Balancea urgencia, tasa y avance mensual.",
+				strategy: "Plan hibrido",
+				multiplier: 1.15
+			},
+			aggressive: {
+				label: "Agresivo",
+				description: "Ataca interes y saldos grandes con la mayor velocidad posible.",
+				strategy: "Avalancha enfocada",
+				multiplier: 1.35
+			}
+		};
+
+		const config = modeMeta[normalizedMode] || modeMeta.medium;
+		const accounts = getCreditAccounts()
+			.filter((account) => account.amount > 0)
+			.sort((left, right) => compareAccountsForPlan(normalizedMode, left, right));
+		const storedCapacity = getDebtPaymentCapacity();
+		const availableBase = Math.max(toNumber(capacityOverride), 0) || storedCapacity || Math.max(getFinancialData().possibleSavings, 0);
+		const capacity = Math.max(availableBase, 0);
+		const totalDebt = accounts.reduce((total, account) => total + account.amount, 0);
+		const totalMinimum = accounts.reduce((total, account) => total + account.minimumPayment, 0);
+		let remaining = capacity;
+		const allocations = accounts.map((account, index) => {
+			const basePayment = Math.min(account.amount, account.minimumPayment > 0 ? account.minimumPayment : index === 0 ? Math.min(account.amount, capacity) : 0);
+			const assigned = Math.min(basePayment, remaining);
+			remaining = Math.max(remaining - assigned, 0);
+			return {
+				...account,
+				recommendedPayment: assigned,
+				rationale: index === 0
+					? `Objetivo principal por ${config.strategy.toLowerCase()}.`
+					: account.minimumPayment > 0
+						? "Mantener pago minimo para no caer en atraso."
+						: "Monitorear, sin asignacion inicial en este plan."
+			};
+		});
+
+		for (let index = 0; index < allocations.length && remaining > 0; index += 1) {
+			const account = allocations[index];
+			const headroom = Math.max(account.amount - account.recommendedPayment, 0);
+			if (headroom <= 0) continue;
+			const extra = Math.min(headroom, remaining);
+			account.recommendedPayment += extra;
+			if (extra > 0 && index === 0) {
+				account.rationale = `${account.rationale} Todo el excedente cae aqui para bajar saldo mas rapido.`;
+			}
+			remaining -= extra;
+		}
+
+		const projectedMonths = capacity > 0 ? Math.ceil(totalDebt / capacity) : null;
+		const focusAccount = allocations[0] || null;
+		const warnings = [];
+		if (accounts.length === 0) warnings.push("No hay deudas activas para planificar.");
+		if (capacity <= 0) warnings.push("Registra tu capacidad mensual de abono para generar un plan accionable.");
+		if (capacity > 0 && totalMinimum > capacity) warnings.push("Tu capacidad no cubre todos los pagos minimos. Ajusta gastos antes de acelerar la deuda objetivo.");
+
+		return {
+			mode: normalizedMode,
+			label: config.label,
+			description: config.description,
+			strategy: config.strategy,
+			capacity,
+			totalDebt,
+			totalMinimum,
+			projectedMonths,
+			focusAccount,
+			allocations,
+			warnings,
+			expenseCuts: getExpenseReductionSuggestions()
+		};
+	}
+
+	function getDebtActionPlans(capacityOverride) {
+		return DEBT_STRATEGY_MODES.map((mode) => getDebtActionPlan(mode, capacityOverride));
+	}
+
+	function getActiveDebtActionPlan(capacityOverride) {
+		return getDebtActionPlan(getDebtStrategyMode(), capacityOverride);
+	}
+
+	function getMovementHistory() {
+		const history = [];
+
+		getCreditAccounts().forEach((account) => {
+			history.push({
+				kind: "registro",
+				category: account.category,
+				accountType: account.type,
+				name: account.name,
+				amount: account.originalAmount,
+				remainingAmount: account.amount,
+				date: account.createdAt || account.dueDate || getTodayDate(),
+				status: account.status,
+				description: `Registro inicial de ${account.type.toLowerCase()}`
+			});
+
+			account.paymentHistory.forEach((entry) => {
+				history.push({
+					kind: "pago",
+					category: account.category,
+					accountType: account.type,
+					name: account.name,
+					amount: entry.amount,
+					remainingAmount: entry.remainingAmount,
+					date: entry.date,
+					status: entry.remainingAmount <= 0 ? "paid" : "active",
+					description: entry.note || (entry.type === "full" ? "Pago completado" : "Abono parcial")
+				});
+			});
+		});
+
+		getExpenseBreakdown()
+			.filter((group) => !getCreditCategories().includes(group.key))
+			.forEach((group) => {
+				group.items.forEach((item) => {
+					const dateValue = group.dateFields.map((field) => item[field]).find(Boolean) || item.createdAt || getTodayDate();
+					history.push({
+						kind: "gasto",
+						category: group.key,
+						accountType: group.label,
+						name: item.nombre || item.descripcion || group.label,
+						amount: toNumber(item.monto),
+						remainingAmount: 0,
+						date: dateValue,
+						status: "logged",
+						description: `Gasto registrado en ${group.label.toLowerCase()}`
+					});
+				});
+			});
+
+		return history.sort((left, right) => {
+			const dateCompare = String(right.date).localeCompare(String(left.date));
+			if (dateCompare !== 0) return dateCompare;
+			return left.kind.localeCompare(right.kind);
+		});
+	}
+
 	async function signUpUser(userData) {
 		const payload = {
 			name: (userData.name || "Usuario").trim(),
@@ -701,6 +1358,7 @@ const FlexiwayFinance = (() => {
 		};
 
 		if (isBackendConfigured()) {
+			updateSyncStatus("auth", "Creando cuenta...");
 			const client = await getSupabaseClient();
 			const emailRedirectTo = getEmailRedirectUrl();
 			const { data, error } = await client.auth.signUp({
@@ -712,7 +1370,10 @@ const FlexiwayFinance = (() => {
 				}
 			});
 
-			if (error) return { ok: false, message: error.message };
+			if (error) {
+				updateSyncStatus("error", "No se pudo crear la cuenta");
+				return { ok: false, message: error.message };
+			}
 
 			if (data?.user) {
 				saveSessionCache({ ...data.user, name: payload.name });
@@ -733,13 +1394,17 @@ const FlexiwayFinance = (() => {
 
 	async function loginUser(email, password) {
 		if (isBackendConfigured()) {
+			updateSyncStatus("auth", "Iniciando sesion...");
 			const client = await getSupabaseClient();
 			const { data, error } = await client.auth.signInWithPassword({
 				email: String(email || "").trim().toLowerCase(),
 				password
 			});
 
-			if (error) return { ok: false, message: error.message };
+			if (error) {
+				updateSyncStatus("error", "No se pudo iniciar sesion");
+				return { ok: false, message: error.message };
+			}
 			saveSessionCache(data?.user);
 			await hydrateRemoteState();
 			return { ok: true, user: getCurrentUser() };
@@ -762,6 +1427,7 @@ const FlexiwayFinance = (() => {
 			if (client) await client.auth.signOut();
 		}
 		saveSessionCache(null);
+		updateSyncStatus(isBackendConfigured() ? "idle" : "local", isBackendConfigured() ? "Sesion cerrada" : "Modo local", { autoReset: 1800, resetState: isBackendConfigured() ? "idle" : "local", resetMessage: isBackendConfigured() ? "Listo" : "Modo local" });
 	}
 
 	function dispatchDataUpdate() {
@@ -771,8 +1437,16 @@ const FlexiwayFinance = (() => {
 		}));
 	}
 
+	function ensureSessionReady() {
+		return backendState.initPromise || Promise.resolve();
+	}
+
 	async function initBackendSession() {
-		if (!isBackendConfigured()) return;
+		if (!isBackendConfigured()) {
+			updateSyncStatus("local", "Modo local");
+			return;
+		}
+		updateSyncStatus("loading", "Conectando con Supabase...");
 		const client = await getSupabaseClient();
 		if (!client) return;
 
@@ -788,20 +1462,25 @@ const FlexiwayFinance = (() => {
 		await hydrateRemoteState();
 	}
 
-	initBackendSession().catch((error) => {
+	backendState.initPromise = initBackendSession().catch((error) => {
 		console.error("No se pudo inicializar Supabase.", error);
 	});
 
 	return {
 		STORAGE_KEYS,
 		EXPENSE_GROUPS,
+		DEBT_STRATEGY_MODES,
 		formatCurrency,
 		formatPercent,
+		getSyncStatus,
 		getCurrencyPreference,
 		getCurrencyConfig,
 		saveCurrencyPreference,
+		getDebtStrategyMode,
+		saveDebtStrategyMode,
 		toNumber,
 		getCollection,
+		saveCollection,
 		getCollections,
 		getExpenseBreakdown,
 		getExpenseSummary,
@@ -812,6 +1491,16 @@ const FlexiwayFinance = (() => {
 		renderBudgetChart,
 		getMonthlySavingsHistory,
 		getCreditSummary,
+		getCreditAccounts,
+		getDebtPaymentCapacity,
+		saveDebtPaymentCapacity,
+		recordDebtPayment,
+		markDebtAsPaid,
+		getDebtActionPlan,
+		getDebtActionPlans,
+		getActiveDebtActionPlan,
+		getMovementHistory,
+		getExpenseReductionSuggestions,
 		getCurrentUser,
 		getRegisteredUser,
 		getRememberedLogin,
@@ -820,6 +1509,7 @@ const FlexiwayFinance = (() => {
 		loginUser,
 		logoutUser,
 		dispatchDataUpdate,
+		ensureSessionReady,
 		persistRemoteState,
 		hydrateRemoteState,
 		isBackendConfigured,

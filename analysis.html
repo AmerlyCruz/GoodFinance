@@ -25,6 +25,7 @@
     .summary-list { display: grid; gap: 14px; }
     .summary-item { display: flex; justify-content: space-between; gap: 16px; padding: 14px 0; border-bottom: 1px solid rgba(58,44,42,0.08); }
     .summary-item:last-child { border-bottom: none; padding-bottom: 0; }
+    .summary-item small { display: block; margin-top: 4px; color: #6f5a58; }
     @media (max-width: 900px) { .kpi-row, .grid { grid-template-columns: 1fr; } }
   </style>
 </head>
@@ -76,9 +77,10 @@
       <article class="panel-card">
         <h2>Que deberias mirar</h2>
         <div class="summary-list">
-          <div class="summary-item"><span>Tarjetas y prestamos</span><strong>Controlan el riesgo de liquidez</strong></div>
-          <div class="summary-item"><span>Servicios</span><strong>Muestran gasto fijo mensual</strong></div>
-          <div class="summary-item"><span>Personalizado</span><strong>Captura gastos que no entran en el modelo base</strong></div>
+          <div class="summary-item"><span>Deuda a atacar</span><strong id="analysisFocusDebt">Sin prioridad activa</strong></div>
+          <div class="summary-item"><span>Avance de pagos</span><strong id="analysisPaymentProgress">0% liquidado</strong><small id="analysisPaymentDetail">Todavia no hay abonos registrados.</small></div>
+          <div class="summary-item"><span>Presion mensual</span><strong id="analysisDebtPressure">Sin capacidad definida</strong><small id="analysisDebtPressureDetail">Define tu abono mensual en Creditos para proyectar salida.</small></div>
+          <div class="summary-item"><span>Recorte sugerido</span><strong id="analysisExpenseCut">Sigue registrando movimientos</strong></div>
         </div>
       </article>
     </div>

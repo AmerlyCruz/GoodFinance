@@ -4,6 +4,10 @@ const FlexiwayAlerts = (() => {
 		const finance = window.FlexiwayFinance.getFinancialData();
 		const metrics = window.FlexiwayFinance.generateDashboardData(finance);
 		const credit = window.FlexiwayFinance.getCreditSummary();
+		const plan = window.FlexiwayFinance.getActiveDebtActionPlan(window.FlexiwayFinance.getDebtPaymentCapacity());
+		const history = window.FlexiwayFinance.getMovementHistory();
+		const currentMonth = new Date().toISOString().slice(0, 7);
+		const monthPayments = history.filter((entry) => entry.kind === "pago" && String(entry.date || "").slice(0, 7) === currentMonth);
 		const user = window.FlexiwayFinance.getCurrentUser();
 		const notifications = [];
 
@@ -18,8 +22,41 @@ const FlexiwayAlerts = (() => {
 			notifications.push({ type: tone, title: "Pago proximo", text: `${credit.nextDue.name} vence en ${credit.nextDue.dueInDays} dias.`, time: credit.nextDue.dueDate || "Proximo" });
 		}
 
+		if (plan.focusAccount) {
+			notifications.push({
+				type: plan.warnings.length > 0 ? "reminder" : "suggestion",
+				title: "Deuda prioritaria",
+				text: `Conviene atacar ${plan.focusAccount.name} con ${window.FlexiwayFinance.formatCurrency(plan.focusAccount.recommendedPayment)} este mes.`,
+				time: plan.strategy
+			});
+		}
+
+		if (plan.capacity > 0 && plan.totalMinimum > plan.capacity) {
+			notifications.push({
+				type: "alert",
+				title: "Capacidad insuficiente",
+				text: `Tu capacidad mensual no cubre los minimos. Necesitas al menos ${window.FlexiwayFinance.formatCurrency(plan.totalMinimum)}.`,
+				time: "Plan de deuda"
+			});
+		}
+
 		if (finance.possibleSavings > 0) {
 			notifications.push({ type: "suggestion", title: "Oportunidad de ahorro", text: `Tu margen actual permite ahorrar ${window.FlexiwayFinance.formatCurrency(finance.possibleSavings)}.`, time: "Este mes" });
+		}
+
+		if (monthPayments.length > 0) {
+			const totalPaid = monthPayments.reduce((total, entry) => total + Number(entry.amount || 0), 0);
+			notifications.push({
+				type: "suggestion",
+				title: "Pagos registrados",
+				text: `Este mes llevas ${monthPayments.length} pago(s) por ${window.FlexiwayFinance.formatCurrency(totalPaid)}.`,
+				time: "Mes actual"
+			});
+		}
+
+		const cut = plan.expenseCuts && plan.expenseCuts[0];
+		if (cut) {
+			notifications.push({ type: "reminder", title: cut.title, text: cut.text, time: "Reducir gastos" });
 		}
 
 		if (!user) {

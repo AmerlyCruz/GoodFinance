@@ -22,8 +22,18 @@
 - Si `url` y `anonKey` estan vacios, Flexiway sigue funcionando en modo local con `localStorage`.
 - Si completas la configuracion, el login, registro y los movimientos se sincronizan con Supabase.
 - La app conserva `localStorage` como cache del navegador para no romper las vistas existentes.
+- Si ya tenias el esquema anterior, vuelve a ejecutar `supabase/schema.sql` para agregar `debt_payment_capacity`, `debt_strategy_mode`, `payment_key`, columnas de deuda enriquecidas y la tabla `finance_item_payments` con soporte de sincronizacion incremental.
 
 ## Tablas usadas
 
-- `user_profiles`: resumen financiero y moneda activa.
-- `finance_items`: ingresos, tarjetas, prestamos, servicios, deudas y categorias personalizadas.
+- `user_profiles`: resumen financiero, moneda activa, capacidad mensual para abonar deudas y modo global de ataque.
+- `finance_items`: ingresos, tarjetas, prestamos, servicios, deudas y categorias personalizadas con monto original, pago minimo y estado.
+- `finance_item_payments`: historial estructurado de abonos parciales y pagos completos por deuda, con `payment_key` para sincronizacion por upsert.
+
+## Migracion recomendada
+
+1. Ejecuta nuevamente [supabase/schema.sql](supabase/schema.sql).
+2. Verifica que existan las columnas nuevas en `user_profiles` y `finance_items`.
+3. Verifica que exista la columna `payment_key` y su indice unico en `finance_item_payments`.
+4. Verifica que exista la tabla `finance_item_payments` con sus politicas RLS.
+5. Inicia sesion otra vez en Flexiway y registra un abono para comprobar que la sincronizacion incremental se complete.

@@ -77,7 +77,14 @@
           <option value="USD">USD - Dolar estadounidense</option>
           <option value="EUR">EUR - Euro</option>
         </select>
+        <label for="debtStrategySelect">Modo global para atacar deudas</label>
+        <select id="debtStrategySelect" name="debtStrategyMode">
+          <option value="regular">Regular - cuida liquidez y busca victorias rapidas</option>
+          <option value="medium">Medio - balancea urgencia, tasa y progreso</option>
+          <option value="aggressive">Agresivo - empuja la deuda con la mayor intensidad</option>
+        </select>
         <p class="helper-text">La moneda elegida se aplica a todos los paneles y totales.</p>
+        <p class="helper-text">El modo de deuda cambia prioridades, proyecciones y alertas en toda la app.</p>
         <button type="submit" class="primary compact-submit">Guardar</button>
       </form>
     </article>
@@ -88,14 +95,19 @@
   <script src="app/alerts.js"></script>
   <script src="template/layout.js"></script>
   <script>
-    function renderProfilePage() {
+    async function renderProfilePage() {
       const finance = window.FlexiwayFinance;
+      if (finance && typeof finance.ensureSessionReady === 'function') {
+        await finance.ensureSessionReady();
+      }
       const user = finance.getCurrentUser();
       const data = finance.getFinancialData();
       const currency = finance.getCurrencyConfig();
+      const activePlan = finance.getActiveDebtActionPlan();
       document.getElementById('profileName').textContent = user ? user.name : 'Perfil sin sesion';
       document.getElementById('profileEmail').textContent = user ? user.email : 'Puedes crear una cuenta o iniciar sesion desde el panel de perfil.';
       document.getElementById('currencySelect').value = currency.currency;
+      document.getElementById('debtStrategySelect').value = finance.getDebtStrategyMode();
 
       const summary = `
         <p><strong>Ingresos:</strong> ${finance.formatCurrency(data.income)}</p>
@@ -103,6 +115,7 @@
         <p><strong>Presupuesto:</strong> ${finance.formatCurrency(data.budget)}</p>
         <p><strong>Ahorro posible:</strong> ${finance.formatCurrency(data.possibleSavings)}</p>
         <p><strong>Moneda activa:</strong> ${currency.currency}</p>
+        <p><strong>Modo de deuda:</strong> ${activePlan.label}</p>
       `;
       document.getElementById('profileFinancialSummary').innerHTML = summary;
 
@@ -110,6 +123,7 @@
       document.getElementById('profileState').innerHTML = `
         <p><strong>Proximo vencimiento:</strong> ${nextDue}</p>
         <p><strong>Uso del presupuesto:</strong> ${finance.formatPercent(finance.generateDashboardData(data).budgetUsage)}</p>
+        <p><strong>Prioridad actual:</strong> ${activePlan.focusAccount ? `${activePlan.focusAccount.name} con ${finance.formatCurrency(activePlan.focusAccount.recommendedPayment)}` : 'Sin prioridad activa.'}</p>
         <p><strong>Estado actual:</strong> los indicadores se actualizan con los datos registrados.</p>
       `;
 
@@ -135,9 +149,11 @@
     document.getElementById('currencyForm').addEventListener('submit', function(event) {
       event.preventDefault();
       const currency = document.getElementById('currencySelect').value;
+      const debtStrategyMode = document.getElementById('debtStrategySelect').value;
       window.FlexiwayFinance.saveCurrencyPreference(currency);
+      window.FlexiwayFinance.saveDebtStrategyMode(debtStrategyMode);
       renderProfilePage();
-      window.showSuccess('Moneda actualizada.');
+      window.showSuccess('Preferencias actualizadas.');
     });
 
     document.addEventListener('DOMContentLoaded', renderProfilePage);

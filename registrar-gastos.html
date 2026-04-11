@@ -33,6 +33,26 @@
     .income-list { display: grid; gap: 10px; }
     .income-item { background: #ffffff; border-radius: 12px; padding: 12px 14px; box-shadow: 0 1px 4px #b5ead7; position: relative; border: 1px solid rgba(56,176,0,0.1); }
     .income-item strong { display: block; margin-bottom: 4px; }
+    .credit-card-item { background: #fff; border-radius: 14px; padding: 14px 12px; margin-bottom: 12px; box-shadow: 0 1px 4px #ffd6e0; position: relative; border: 1px solid rgba(230,57,70,0.08); }
+    .credit-card-item strong { display: block; margin-bottom: 6px; }
+    .credit-meta { display: flex; flex-wrap: wrap; gap: 8px 12px; color: #6f5a55; font-size: 0.95rem; margin: 8px 0; }
+    .credit-progress { height: 8px; border-radius: 999px; background: #fbe4e9; overflow: hidden; margin: 10px 0 12px; }
+    .credit-progress span { display: block; height: 100%; background: linear-gradient(90deg, #38b000, #7cc96f); }
+    .credit-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+    .credit-action-btn { border: none; border-radius: 999px; padding: 9px 12px; cursor: pointer; font-weight: 700; font-family: inherit; }
+    .credit-action-btn.primary { background: #e63946; color: #fff; }
+    .credit-action-btn.secondary { background: #fff1f3; color: #b42318; }
+    .credit-action-btn.success { background: #edf9f2; color: #248232; }
+    .credit-action-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+    .status-chip { display: inline-flex; align-items: center; border-radius: 999px; padding: 5px 10px; font-size: 0.82rem; font-weight: 700; }
+    .status-chip.pending { background: #fff3cd; color: #8a5b00; }
+    .status-chip.paid { background: #edf9f2; color: #248232; }
+    .history-panel { background: linear-gradient(135deg, #fff7e6 0%, #fff 100%); border: 1px solid rgba(217,122,138,0.18); border-radius: 18px; padding: 22px; box-shadow: 0 8px 24px rgba(217,122,138,0.08); margin-top: 24px; }
+    .history-panel h3 { margin: 0 0 8px; color: #b42318; }
+    .history-list { display: grid; gap: 10px; margin-top: 16px; }
+    .history-item { background: #fff; border-radius: 12px; padding: 12px 14px; border: 1px solid rgba(217,122,138,0.12); }
+    .history-item strong { display: block; margin-bottom: 4px; }
+    .history-item small { color: #7f6b68; }
     @media (max-width: 760px) { .income-toolbar { flex-direction: column; } .income-add-btn { width: 100%; justify-content: center; } }
   </style>
 </head>
@@ -84,11 +104,10 @@
     <script>
     // --- INGRESOS ---
     function getIngresos() {
-      return JSON.parse(localStorage.getItem('ingresos')||'[]');
+      return getStoredList('ingresos');
     }
     function setIngresos(arr) {
-      localStorage.setItem('ingresos', JSON.stringify(arr));
-      if (window.FlexiwayFinance) window.FlexiwayFinance.dispatchDataUpdate();
+      setStoredList('ingresos', arr);
     }
     function renderIngresos() {
       const lista = document.getElementById('ingresos-lista');
@@ -209,16 +228,181 @@
         <div id="custom-cat-lista"></div>
       </div>
     </div>
+    <section class="history-panel">
+      <h3>Histórico de gastos y pagos</h3>
+      <p>Consulta lo registrado y cada abono hecho a tus deudas para saber qué sigue pendiente y qué ya quedó liquidado.</p>
+      <div id="movement-history" class="history-list"></div>
+    </section>
   </main>
   <script>
     // --- Tarjetas de crédito ---
-    renderIngresos();
+    function getStoredList(storageKey) {
+      if (!window.FlexiwayFinance) return [];
+      return window.FlexiwayFinance.getCollection(storageKey);
+    }
+    function setStoredList(storageKey, items) {
+      if (!window.FlexiwayFinance) return false;
+      return window.FlexiwayFinance.saveCollection(storageKey, items);
+    }
+    function getTodayInputValue() {
+      const now = new Date();
+      const yyyy = now.getFullYear();
+      const mm = String(now.getMonth() + 1).padStart(2, '0');
+      const dd = String(now.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    }
+    function formatMoney(value) {
+      if (window.FlexiwayFinance) return window.FlexiwayFinance.formatCurrency(value);
+      return '$' + Number(value || 0).toLocaleString();
+    }
+    function escapeHtml(value) {
+      return String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+    function getCreditAccountsByCategory(category, fallbackItems, typeLabel, dueField) {
+      if (window.FlexiwayFinance && typeof window.FlexiwayFinance.getCreditAccounts === 'function') {
+        return window.FlexiwayFinance.getCreditAccounts().filter((item) => item.category === category);
+      }
+      return fallbackItems.map((item, index) => ({
+        category,
+        index,
+        name: item.nombre || typeLabel,
+        amount: Number(item.monto || 0),
+        originalAmount: Number(item.originalMonto || item.monto || 0),
+        minimumPayment: Number(item.pagoMinimo || 0),
+        rate: Number(item.tasa || 0),
+        dueDate: item[dueField] || item.fecha || '',
+        status: Number(item.monto || 0) <= 0 ? 'paid' : 'active',
+        progress: item.originalMonto ? Math.min(((Number(item.originalMonto) - Number(item.monto || 0)) / Number(item.originalMonto)) * 100, 100) : 0,
+        paymentHistory: Array.isArray(item.paymentHistory) ? item.paymentHistory : []
+      }));
+    }
+    function buildCreditCardHtml(account, editHandler, deleteHandler, dueLabel) {
+      const pendingLabel = account.amount > 0 ? formatMoney(account.amount) : 'Liquidada';
+      const originalLabel = formatMoney(account.originalAmount || account.amount);
+      const minimumLabel = account.minimumPayment > 0 ? formatMoney(account.minimumPayment) : 'No definido';
+      const statusClass = account.amount > 0 ? 'pending' : 'paid';
+      const statusText = account.amount > 0 ? 'Pendiente' : 'Pagada';
+      const progressWidth = Math.max(0, Math.min(Number(account.progress || 0), 100));
+      return `
+        <div class="credit-card-item">
+          <strong>${escapeHtml(account.name)}</strong>
+          <span class="status-chip ${statusClass}">${statusText}</span>
+          <div class="credit-meta">
+            <span>Saldo pendiente: ${pendingLabel}</span>
+            <span>Monto original: ${originalLabel}</span>
+            <span>${dueLabel}: ${escapeHtml(account.dueDate || 'Sin fecha')}</span>
+            <span>Tasa: ${account.rate ? account.rate + '%' : 'N/A'}</span>
+            <span>Pago mínimo: ${minimumLabel}</span>
+          </div>
+          <div class="credit-progress"><span style="width:${progressWidth}%;"></span></div>
+          <div class="credit-actions">
+            <button class="credit-action-btn primary" onclick="registrarPagoCuenta('${account.category}', ${account.index})" ${account.amount <= 0 ? 'disabled' : ''}>Pago parcial</button>
+            <button class="credit-action-btn success" onclick="marcarCuentaPagada('${account.category}', ${account.index})" ${account.amount <= 0 ? 'disabled' : ''}>Se pagó</button>
+            <button class="credit-action-btn secondary" onclick="${editHandler}(${account.index})">Editar</button>
+            <button class="credit-action-btn secondary" onclick="${deleteHandler}(${account.index})">Eliminar</button>
+          </div>
+        </div>
+      `;
+    }
+    function refreshCreditViews() {
+      renderTarjetas();
+      renderPrestamos();
+      renderDeudas();
+      renderMovementHistory();
+    }
+    function registrarPagoCuenta(category, index) {
+      if (!window.FlexiwayFinance) return;
+      const account = window.FlexiwayFinance.getCreditAccounts().find((item) => item.category === category && item.index === index);
+      if (!account) return;
+      const today = getTodayInputValue();
+      Swal.fire({
+        title: 'Registrar abono',
+        html: `
+          <div style='text-align:left;padding:0 4px 8px;'>
+            <strong>${escapeHtml(account.name)}</strong><br>
+            <small>Saldo pendiente: ${formatMoney(account.amount)}</small>
+          </div>
+          <input id='abono-monto' class='swal2-input' type='number' min='0' max='${account.amount}' step='0.01' placeholder='Monto abonado'>
+          <input id='abono-fecha' class='swal2-input' type='date' value='${today}'>
+          <input id='abono-nota' class='swal2-input' placeholder='Nota opcional'>
+        `,
+        confirmButtonText: 'Guardar abono',
+        showCancelButton: true,
+        preConfirm: () => {
+          const amount = Number(document.getElementById('abono-monto').value);
+          const date = document.getElementById('abono-fecha').value;
+          const note = document.getElementById('abono-nota').value.trim();
+          if (isNaN(amount) || amount <= 0 || !date) {
+            Swal.showValidationMessage('Ingresa un monto válido y una fecha');
+            return false;
+          }
+          return { amount, date, note };
+        }
+      }).then((result) => {
+        if (!result.isConfirmed || !result.value) return;
+        const response = window.FlexiwayFinance.recordDebtPayment(category, index, result.value);
+        if (!response.ok) {
+          Swal.fire('No se pudo registrar', response.message || 'Revisa los datos e intenta otra vez.', 'error');
+          return;
+        }
+        refreshCreditViews();
+      });
+    }
+    function marcarCuentaPagada(category, index) {
+      if (!window.FlexiwayFinance) return;
+      const today = getTodayInputValue();
+      Swal.fire({
+        title: 'Confirmar pago total',
+        text: 'Se registrará el saldo restante como pagado.',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, marcar pagada',
+        cancelButtonText: 'Cancelar'
+      }).then((result) => {
+        if (!result.isConfirmed) return;
+        const response = window.FlexiwayFinance.markDebtAsPaid(category, index, { date: today, note: 'Pago total registrado' });
+        if (!response.ok) {
+          Swal.fire('No se pudo actualizar', response.message || 'Intenta nuevamente.', 'error');
+          return;
+        }
+        refreshCreditViews();
+      });
+    }
+    function renderMovementHistory() {
+      const container = document.getElementById('movement-history');
+      if (!container) return;
+      if (!window.FlexiwayFinance || typeof window.FlexiwayFinance.getMovementHistory !== 'function') {
+        container.innerHTML = '<div class="history-item"><strong>Cargando histórico...</strong><small>Espera a que se inicialice el motor financiero.</small></div>';
+        return;
+      }
+      const history = window.FlexiwayFinance.getMovementHistory();
+      if (history.length === 0) {
+        container.innerHTML = '<div class="history-item"><strong>Sin movimientos todavía</strong><small>Empieza registrando gastos o pagos para construir el histórico.</small></div>';
+        return;
+      }
+      container.innerHTML = history.slice(0, 30).map((entry) => `
+        <div class="history-item">
+          <strong>${escapeHtml(entry.name)}</strong>
+          <div class="credit-meta">
+            <span>${escapeHtml(entry.accountType || entry.category)}</span>
+            <span>${escapeHtml(entry.date || 'Sin fecha')}</span>
+            <span>Monto: ${formatMoney(entry.amount)}</span>
+            ${entry.kind === 'pago' ? `<span>Pendiente luego del pago: ${formatMoney(entry.remainingAmount)}</span>` : ''}
+          </div>
+          <small>${escapeHtml(entry.description || 'Movimiento registrado')}</small>
+        </div>
+      `).join('');
+    }
     function getTarjetas() {
-      return JSON.parse(localStorage.getItem('tarjetasCredito')||'[]');
+      return getStoredList('tarjetasCredito');
     }
     function setTarjetas(arr) {
-      localStorage.setItem('tarjetasCredito', JSON.stringify(arr));
-      if (window.FlexiwayFinance) window.FlexiwayFinance.dispatchDataUpdate();
+      setStoredList('tarjetasCredito', arr);
     }
     function renderTarjetas() {
       const lista = document.getElementById('tarjetas-lista');
@@ -229,19 +413,8 @@
         lista.innerHTML = '<p style="color:#888">No hay tarjetas registradas.</p>';
         return;
       }
-      tarjetas.forEach((t, i) => {
-        const div = document.createElement('div');
-        div.style = 'background:#fff;border-radius:10px;padding:12px 10px;margin-bottom:10px;box-shadow:0 1px 4px #ffd6e0;position:relative;';
-        div.innerHTML = `
-          <strong>${t.nombre}</strong><br>
-          Monto actual: $${t.monto.toLocaleString()}<br>
-          Fecha de corte: ${t.fechaCorte}<br>
-          Tasa interés: ${t.tasa}% anual
-          <button onclick="editarTarjeta(${i})" title="Editar" style="position:absolute;top:8px;right:38px;background:none;border:none;cursor:pointer;color:#e63946;"><svg width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='#e63946' stroke-width='2'><path d='M12 20h9'/><path d='M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z'/></svg></button>
-          <button onclick="eliminarTarjeta(${i})" title="Eliminar" style="position:absolute;top:8px;right:8px;background:none;border:none;cursor:pointer;color:#e63946;"><svg width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='#e63946' stroke-width='2'><line x1='18' y1='6' x2='6' y2='18'/><line x1='6' y1='6' x2='18' y2='18'/></svg></button>
-        `;
-        lista.appendChild(div);
-      });
+      const accounts = getCreditAccountsByCategory('cards', tarjetas, 'Tarjeta', 'fechaCorte');
+      lista.innerHTML = accounts.map((account) => buildCreditCardHtml(account, 'editarTarjeta', 'eliminarTarjeta', 'Fecha de corte')).join('');
     }
     function agregarTarjeta() {
       Swal.fire({
@@ -251,6 +424,7 @@
           <input id='monto-tarjeta' class='swal2-input' type='number' min='0' placeholder='Monto actual'>
           <input id='fecha-corte-tarjeta' class='swal2-input' type='date' placeholder='Fecha de corte'>
           <input id='tasa-tarjeta' class='swal2-input' type='number' min='0' step='0.01' placeholder='Tasa de interés anual (%)'>
+          <input id='minimo-tarjeta' class='swal2-input' type='number' min='0' step='0.01' placeholder='Pago mínimo mensual (opcional)'>
         `,
         confirmButtonText: 'Guardar',
         showCancelButton: true,
@@ -259,11 +433,12 @@
           const monto = Number(document.getElementById('monto-tarjeta').value);
           const fechaCorte = document.getElementById('fecha-corte-tarjeta').value;
           const tasa = Number(document.getElementById('tasa-tarjeta').value);
+          const pagoMinimo = document.getElementById('minimo-tarjeta').value;
           if (!nombre || isNaN(monto) || !fechaCorte || isNaN(tasa)) {
             Swal.showValidationMessage('Completa todos los campos correctamente');
             return false;
           }
-          return { nombre, monto, fechaCorte, tasa };
+          return { nombre, monto, fechaCorte, tasa, pagoMinimo: pagoMinimo ? Number(pagoMinimo) : 0, originalMonto: monto, createdAt: getTodayInputValue() };
         }
       }).then(res => {
         if (res.isConfirmed && res.value) {
@@ -284,6 +459,7 @@
           <input id='monto-tarjeta' class='swal2-input' type='number' min='0' value='${t.monto}' placeholder='Monto actual'>
           <input id='fecha-corte-tarjeta' class='swal2-input' type='date' value='${t.fechaCorte}' placeholder='Fecha de corte'>
           <input id='tasa-tarjeta' class='swal2-input' type='number' min='0' step='0.01' value='${t.tasa}' placeholder='Tasa de interés anual (%)'>
+          <input id='minimo-tarjeta' class='swal2-input' type='number' min='0' step='0.01' value='${t.pagoMinimo || ''}' placeholder='Pago mínimo mensual (opcional)'>
         `,
         confirmButtonText: 'Guardar',
         showCancelButton: true,
@@ -292,11 +468,12 @@
           const monto = Number(document.getElementById('monto-tarjeta').value);
           const fechaCorte = document.getElementById('fecha-corte-tarjeta').value;
           const tasa = Number(document.getElementById('tasa-tarjeta').value);
+          const pagoMinimo = document.getElementById('minimo-tarjeta').value;
           if (!nombre || isNaN(monto) || !fechaCorte || isNaN(tasa)) {
             Swal.showValidationMessage('Completa todos los campos correctamente');
             return false;
           }
-          return { nombre, monto, fechaCorte, tasa };
+          return { ...t, nombre, monto, fechaCorte, tasa, pagoMinimo: pagoMinimo ? Number(pagoMinimo) : 0, originalMonto: Math.max(Number(t.originalMonto || 0), monto), createdAt: t.createdAt || getTodayInputValue() };
         }
       }).then(res => {
         if (res.isConfirmed && res.value) {
@@ -324,11 +501,10 @@
     }
     // --- Préstamos ---
     function getPrestamos() {
-      return JSON.parse(localStorage.getItem('prestamos')||'[]');
+      return getStoredList('prestamos');
     }
     function setPrestamos(arr) {
-      localStorage.setItem('prestamos', JSON.stringify(arr));
-      if (window.FlexiwayFinance) window.FlexiwayFinance.dispatchDataUpdate();
+      setStoredList('prestamos', arr);
     }
     function renderPrestamos() {
       const lista = document.getElementById('prestamos-lista');
@@ -339,19 +515,8 @@
         lista.innerHTML = '<p style="color:#888">No hay préstamos registrados.</p>';
         return;
       }
-      prestamos.forEach((p, i) => {
-        const div = document.createElement('div');
-        div.style = 'background:#fff;border-radius:10px;padding:12px 10px;margin-bottom:10px;box-shadow:0 1px 4px #ffd6e0;position:relative;';
-        div.innerHTML = `
-          <strong>${p.nombre}</strong><br>
-          Monto actual: $${p.monto.toLocaleString()}<br>
-          Fecha de pago: ${p.fechaPago}<br>
-          Tasa interés: ${p.tasa}% anual
-          <button onclick="editarPrestamo(${i})" title="Editar" style="position:absolute;top:8px;right:38px;background:none;border:none;cursor:pointer;color:#e63946;"><svg width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='#e63946' stroke-width='2'><path d='M12 20h9'/><path d='M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z'/></svg></button>
-          <button onclick="eliminarPrestamo(${i})" title="Eliminar" style="position:absolute;top:8px;right:8px;background:none;border:none;cursor:pointer;color:#e63946;"><svg width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='#e63946' stroke-width='2'><line x1='18' y1='6' x2='6' y2='18'/><line x1='6' y1='6' x2='18' y2='18'/></svg></button>
-        `;
-        lista.appendChild(div);
-      });
+      const accounts = getCreditAccountsByCategory('loans', prestamos, 'Préstamo', 'fechaPago');
+      lista.innerHTML = accounts.map((account) => buildCreditCardHtml(account, 'editarPrestamo', 'eliminarPrestamo', 'Fecha de pago')).join('');
     }
     function agregarPrestamo() {
       Swal.fire({
@@ -361,6 +526,7 @@
           <input id='monto-prestamo' class='swal2-input' type='number' min='0' placeholder='Monto actual'>
           <input id='fecha-pago-prestamo' class='swal2-input' type='date' placeholder='Fecha de pago'>
           <input id='tasa-prestamo' class='swal2-input' type='number' min='0' step='0.01' placeholder='Tasa de interés anual (%)'>
+          <input id='minimo-prestamo' class='swal2-input' type='number' min='0' step='0.01' placeholder='Pago mínimo mensual (opcional)'>
         `,
         confirmButtonText: 'Guardar',
         showCancelButton: true,
@@ -369,11 +535,12 @@
           const monto = Number(document.getElementById('monto-prestamo').value);
           const fechaPago = document.getElementById('fecha-pago-prestamo').value;
           const tasa = Number(document.getElementById('tasa-prestamo').value);
+          const pagoMinimo = document.getElementById('minimo-prestamo').value;
           if (!nombre || isNaN(monto) || !fechaPago || isNaN(tasa)) {
             Swal.showValidationMessage('Completa todos los campos correctamente');
             return false;
           }
-          return { nombre, monto, fechaPago, tasa };
+          return { nombre, monto, fechaPago, tasa, pagoMinimo: pagoMinimo ? Number(pagoMinimo) : 0, originalMonto: monto, createdAt: getTodayInputValue() };
         }
       }).then(res => {
         if (res.isConfirmed && res.value) {
@@ -394,6 +561,7 @@
           <input id='monto-prestamo' class='swal2-input' type='number' min='0' value='${p.monto}' placeholder='Monto actual'>
           <input id='fecha-pago-prestamo' class='swal2-input' type='date' value='${p.fechaPago}' placeholder='Fecha de pago'>
           <input id='tasa-prestamo' class='swal2-input' type='number' min='0' step='0.01' value='${p.tasa}' placeholder='Tasa de interés anual (%)'>
+          <input id='minimo-prestamo' class='swal2-input' type='number' min='0' step='0.01' value='${p.pagoMinimo || ''}' placeholder='Pago mínimo mensual (opcional)'>
         `,
         confirmButtonText: 'Guardar',
         showCancelButton: true,
@@ -402,11 +570,12 @@
           const monto = Number(document.getElementById('monto-prestamo').value);
           const fechaPago = document.getElementById('fecha-pago-prestamo').value;
           const tasa = Number(document.getElementById('tasa-prestamo').value);
+          const pagoMinimo = document.getElementById('minimo-prestamo').value;
           if (!nombre || isNaN(monto) || !fechaPago || isNaN(tasa)) {
             Swal.showValidationMessage('Completa todos los campos correctamente');
             return false;
           }
-          return { nombre, monto, fechaPago, tasa };
+          return { ...p, nombre, monto, fechaPago, tasa, pagoMinimo: pagoMinimo ? Number(pagoMinimo) : 0, originalMonto: Math.max(Number(p.originalMonto || 0), monto), createdAt: p.createdAt || getTodayInputValue() };
         }
       }).then(res => {
         if (res.isConfirmed && res.value) {
@@ -435,11 +604,10 @@
 
     // --- Servicios ---
     function getServicios() {
-      return JSON.parse(localStorage.getItem('servicios')||'[]');
+      return getStoredList('servicios');
     }
     function setServicios(arr) {
-      localStorage.setItem('servicios', JSON.stringify(arr));
-      if (window.FlexiwayFinance) window.FlexiwayFinance.dispatchDataUpdate();
+      setStoredList('servicios', arr);
     }
     function renderServicios() {
       const lista = document.getElementById('servicios-lista');
@@ -541,11 +709,10 @@
 
     // --- Deudas ---
     function getDeudas() {
-      return JSON.parse(localStorage.getItem('deudas')||'[]');
+      return getStoredList('deudas');
     }
     function setDeudas(arr) {
-      localStorage.setItem('deudas', JSON.stringify(arr));
-      if (window.FlexiwayFinance) window.FlexiwayFinance.dispatchDataUpdate();
+      setStoredList('deudas', arr);
     }
     function renderDeudas() {
       const lista = document.getElementById('deudas-lista');
@@ -556,19 +723,8 @@
         lista.innerHTML = '<p style="color:#888">No hay deudas registradas.</p>';
         return;
       }
-      deudas.forEach((d, i) => {
-        const div = document.createElement('div');
-        div.style = 'background:#fff;border-radius:10px;padding:12px 10px;margin-bottom:10px;box-shadow:0 1px 4px #ffd6e0;position:relative;';
-        div.innerHTML = `
-          <strong>${d.nombre}</strong><br>
-          Monto actual: $${d.monto.toLocaleString()}<br>
-          Fecha de pago: ${d.fechaPago}<br>
-          Tasa interés: ${d.tasa ? d.tasa + '%' : 'N/A'}
-          <button onclick="editarDeuda(${i})" title="Editar" style="position:absolute;top:8px;right:38px;background:none;border:none;cursor:pointer;color:#e63946;"><svg width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='#e63946' stroke-width='2'><path d='M12 20h9'/><path d='M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z'/></svg></button>
-          <button onclick="eliminarDeuda(${i})" title="Eliminar" style="position:absolute;top:8px;right:8px;background:none;border:none;cursor:pointer;color:#e63946;"><svg width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='#e63946' stroke-width='2'><line x1='18' y1='6' x2='6' y2='18'/><line x1='6' y1='6' x2='18' y2='18'/></svg></button>
-        `;
-        lista.appendChild(div);
-      });
+      const accounts = getCreditAccountsByCategory('debts', deudas, 'Deuda', 'fechaPago');
+      lista.innerHTML = accounts.map((account) => buildCreditCardHtml(account, 'editarDeuda', 'eliminarDeuda', 'Fecha de pago')).join('');
     }
     function agregarDeuda() {
       Swal.fire({
@@ -578,6 +734,7 @@
           <input id='monto-deuda' class='swal2-input' type='number' min='0' placeholder='Monto actual'>
           <input id='fecha-pago-deuda' class='swal2-input' type='date' placeholder='Fecha de pago'>
           <input id='tasa-deuda' class='swal2-input' type='number' min='0' step='0.01' placeholder='Tasa de interés anual (%) (opcional)'>
+          <input id='minimo-deuda' class='swal2-input' type='number' min='0' step='0.01' placeholder='Pago mínimo mensual (opcional)'>
         `,
         confirmButtonText: 'Guardar',
         showCancelButton: true,
@@ -586,11 +743,12 @@
           const monto = Number(document.getElementById('monto-deuda').value);
           const fechaPago = document.getElementById('fecha-pago-deuda').value;
           const tasa = document.getElementById('tasa-deuda').value;
+          const pagoMinimo = document.getElementById('minimo-deuda').value;
           if (!nombre || isNaN(monto) || !fechaPago) {
             Swal.showValidationMessage('Completa todos los campos correctamente');
             return false;
           }
-          return { nombre, monto, fechaPago, tasa: tasa ? Number(tasa) : null };
+          return { nombre, monto, fechaPago, tasa: tasa ? Number(tasa) : null, pagoMinimo: pagoMinimo ? Number(pagoMinimo) : 0, originalMonto: monto, createdAt: getTodayInputValue() };
         }
       }).then(res => {
         if (res.isConfirmed && res.value) {
@@ -611,6 +769,7 @@
           <input id='monto-deuda' class='swal2-input' type='number' min='0' value='${d.monto}' placeholder='Monto actual'>
           <input id='fecha-pago-deuda' class='swal2-input' type='date' value='${d.fechaPago}' placeholder='Fecha de pago'>
           <input id='tasa-deuda' class='swal2-input' type='number' min='0' step='0.01' value='${d.tasa || ''}' placeholder='Tasa de interés anual (%) (opcional)'>
+          <input id='minimo-deuda' class='swal2-input' type='number' min='0' step='0.01' value='${d.pagoMinimo || ''}' placeholder='Pago mínimo mensual (opcional)'>
         `,
         confirmButtonText: 'Guardar',
         showCancelButton: true,
@@ -619,11 +778,12 @@
           const monto = Number(document.getElementById('monto-deuda').value);
           const fechaPago = document.getElementById('fecha-pago-deuda').value;
           const tasa = document.getElementById('tasa-deuda').value;
+          const pagoMinimo = document.getElementById('minimo-deuda').value;
           if (!nombre || isNaN(monto) || !fechaPago) {
             Swal.showValidationMessage('Completa todos los campos correctamente');
             return false;
           }
-          return { nombre, monto, fechaPago, tasa: tasa ? Number(tasa) : null };
+          return { ...d, nombre, monto, fechaPago, tasa: tasa ? Number(tasa) : null, pagoMinimo: pagoMinimo ? Number(pagoMinimo) : 0, originalMonto: Math.max(Number(d.originalMonto || 0), monto), createdAt: d.createdAt || getTodayInputValue() };
         }
       }).then(res => {
         if (res.isConfirmed && res.value) {
@@ -652,11 +812,10 @@
 
     // --- Categorías personalizadas ---
     function getCustomCats() {
-      return JSON.parse(localStorage.getItem('customCats')||'[]');
+      return getStoredList('customCats');
     }
     function setCustomCats(arr) {
-      localStorage.setItem('customCats', JSON.stringify(arr));
-      if (window.FlexiwayFinance) window.FlexiwayFinance.dispatchDataUpdate();
+      setStoredList('customCats', arr);
     }
     function renderCustomCats() {
       const lista = document.getElementById('custom-cat-lista');
@@ -757,6 +916,23 @@
     renderServicios();
     renderDeudas();
     renderCustomCats();
+    document.addEventListener('DOMContentLoaded', async function() {
+      if (window.FlexiwayFinance && typeof window.FlexiwayFinance.ensureSessionReady === 'function') {
+        await window.FlexiwayFinance.ensureSessionReady();
+      }
+      if (!window.FlexiwayFinance || !window.FlexiwayFinance.getCurrentUser()) {
+        window.location.href = 'login.html';
+        return;
+      }
+      renderIngresos();
+      renderTarjetas();
+      renderPrestamos();
+      renderServicios();
+      renderDeudas();
+      renderCustomCats();
+      refreshCreditViews();
+    });
+    window.addEventListener('flexiway:data-updated', refreshCreditViews);
   </script>
   <script src="app/supabase-config.js"></script>
   <script src="app/finance.js"></script>
