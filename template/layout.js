@@ -90,13 +90,14 @@ function renderProfilePanel() {
 	if (!window.FlexiwayFinance) return;
 	const content = document.getElementById("profilePanelContent") || document.querySelector("#profilePanel .profile-content");
 	if (!content) return;
-	const user = window.FlexiwayFinance.getCurrentUser();
-	const data = window.FlexiwayFinance.getFinancialData();
-	const formatter = window.FlexiwayFinance.formatCurrency;
+	try {
+		const user = window.FlexiwayFinance.getCurrentUser();
+		const data = window.FlexiwayFinance.getFinancialData();
+		const formatter = window.FlexiwayFinance.formatCurrency;
 
-	if (user) {
-		const currency = window.FlexiwayFinance.getCurrencyConfig();
-		content.innerHTML = `
+		if (user) {
+			const currency = window.FlexiwayFinance.getCurrencyConfig();
+			content.innerHTML = `
 			<div style="padding:12px 0;border-bottom:1px solid #e5e5e5;">
 				<strong style="display:block;font-size:1.1rem;">${user.name}</strong>
 				<small>${user.email}</small>
@@ -119,33 +120,40 @@ function renderProfilePanel() {
 			<button id="profile-edit" class="profile-btn">Editar finanzas</button>
 			<button id="profile-logout" class="profile-btn" style="background:#e63946;color:#fff;">Cerrar sesion</button>
 		`;
-	} else {
-		content.innerHTML = `
+		} else {
+			content.innerHTML = `
 			<p style="margin:0;color:#3a2c2a;">Inicia sesion para acceder a tu perfil y tus preferencias.</p>
 			<button id="profile-login" class="profile-btn">Iniciar sesion</button>
 			<button id="profile-signup" class="profile-btn">Crear cuenta</button>
 			<a href="profile.html" class="profile-btn" style="text-decoration:none;text-align:center;display:block;">Vista general</a>
 		`;
-	}
+		}
 
-	const loginBtn = document.getElementById("profile-login");
-	if (loginBtn) loginBtn.onclick = () => { window.location.href = "login.html"; };
+		const loginBtn = document.getElementById("profile-login");
+		if (loginBtn) loginBtn.onclick = () => { window.location.href = "login.html"; };
 
-	const signupBtn = document.getElementById("profile-signup");
-	if (signupBtn) signupBtn.onclick = () => { window.location.href = "signup.html"; };
+		const signupBtn = document.getElementById("profile-signup");
+		if (signupBtn) signupBtn.onclick = () => { window.location.href = "signup.html"; };
 
-	const viewBtn = document.getElementById("profile-view");
-	if (viewBtn) viewBtn.onclick = () => { window.location.href = "profile.html"; };
+		const viewBtn = document.getElementById("profile-view");
+		if (viewBtn) viewBtn.onclick = () => { window.location.href = "profile.html"; };
 
-	const editBtn = document.getElementById("profile-edit");
-	if (editBtn) editBtn.onclick = () => { window.location.href = "edit-profile.html"; };
+		const editBtn = document.getElementById("profile-edit");
+		if (editBtn) editBtn.onclick = () => { window.location.href = "edit-profile.html"; };
 
-	const logoutBtn = document.getElementById("profile-logout");
-	if (logoutBtn) {
-		logoutBtn.onclick = async () => {
-			await window.FlexiwayFinance.logoutUser();
-			window.location.href = "index.html";
-		};
+		const logoutBtn = document.getElementById("profile-logout");
+		if (logoutBtn) {
+			logoutBtn.onclick = async () => {
+				await window.FlexiwayFinance.logoutUser();
+				window.location.href = "index.html";
+			};
+		}
+	} catch (error) {
+		console.error("No se pudo renderizar el panel de perfil.", error);
+		content.innerHTML = `
+			<p style="margin:0;color:#3a2c2a;">No se pudo cargar el perfil.</p>
+			<a href="login.html" class="profile-btn" style="text-decoration:none;text-align:center;display:block;">Ir a iniciar sesion</a>
+		`;
 	}
 }
 
@@ -154,9 +162,36 @@ function renderSyncStatus() {
 	const chip = document.getElementById("appSyncStatus");
 	if (!chip) return;
 	const status = window.FlexiwayFinance.getSyncStatus();
+	const diagnostics = typeof window.FlexiwayFinance.getSyncDiagnostics === "function"
+		? window.FlexiwayFinance.getSyncDiagnostics()
+		: null;
 	chip.className = `app-sync-status ${status.state || "idle"}`;
 	chip.textContent = status.message || "Listo";
-	chip.hidden = !status.message;
+	chip.style.cursor = status.state === "error" && diagnostics ? "pointer" : "default";
+	chip.title = status.state === "error" && diagnostics ? "Haz clic para ver detalles del error" : "";
+	chip.hidden = !status.message || ["idle", "local", "synced"].includes(status.state || "idle");
+	chip.onclick = null;
+	if (status.state === "error" && diagnostics) {
+		chip.onclick = () => {
+			const lines = [
+				`Origen: ${diagnostics.source}`,
+				diagnostics.code ? `Codigo: ${diagnostics.code}` : "",
+				`Mensaje: ${diagnostics.message}`,
+				diagnostics.details ? `Detalle: ${diagnostics.details}` : "",
+				diagnostics.hint ? `Pista: ${diagnostics.hint}` : ""
+			].filter(Boolean);
+			if (typeof Swal !== "undefined") {
+				Swal.fire({
+					title: "Detalle de sincronizacion",
+					text: lines.join("\n"),
+					icon: "info",
+					confirmButtonText: "Cerrar"
+				});
+				return;
+			}
+			window.alert(lines.join("\n"));
+		};
+	}
 }
 
 function bindSidebar() {

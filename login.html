@@ -85,6 +85,8 @@
   </section>
 
   <script src="app/supabase-config.js"></script>
+  <script src="app/finance-session.js"></script>
+  <script src="app/finance-sync.js"></script>
   <script src="app/finance.js"></script>
   <script src="app/alerts.js"></script>
   <script src="template/layout.js"></script>
@@ -111,15 +113,28 @@
 
     document.getElementById('loginForm').addEventListener('submit', async function(event) {
       event.preventDefault();
-      const payload = Object.fromEntries(new FormData(this).entries());
-      const result = await window.FlexiwayFinance.loginUser(payload.email, payload.password);
-      if (!result.ok) {
-        window.showError(result.message);
-        return;
+      const submitButton = this.querySelector('button[type="submit"]');
+      const originalLabel = submitButton.textContent;
+      submitButton.disabled = true;
+      submitButton.textContent = 'Entrando...';
+
+      try {
+        const payload = Object.fromEntries(new FormData(this).entries());
+        const result = await window.FlexiwayFinance.loginUser(payload.email, payload.password);
+        if (!result.ok) {
+          window.showError(result.message);
+          return;
+        }
+        window.FlexiwayFinance.saveRememberedLogin(payload.email, payload.password, this.elements.rememberLogin.checked);
+        window.showSuccess(result.message || 'Sesion iniciada.');
+        window.location.href = 'profile.html';
+      } catch (error) {
+        console.error('No se pudo iniciar sesion.', error);
+        window.showError('No se pudo iniciar sesion. Revisa la conexion e intentalo otra vez.');
+      } finally {
+        submitButton.disabled = false;
+        submitButton.textContent = originalLabel;
       }
-      window.FlexiwayFinance.saveRememberedLogin(payload.email, payload.password, this.elements.rememberLogin.checked);
-      window.showSuccess('Sesion iniciada.');
-      window.location.href = 'profile.html';
     });
   </script>
 </body>

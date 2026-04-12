@@ -3,7 +3,10 @@ function renderDashboardPage() {
 	const data = window.FlexiwayFinance.getFinancialData();
 	const metrics = window.FlexiwayFinance.generateDashboardData(data);
 	const formatter = window.FlexiwayFinance.formatCurrency;
-	const activePlan = window.FlexiwayFinance.getActiveDebtActionPlan(window.FlexiwayFinance.getDebtPaymentCapacity());
+	const activePlan = window.FlexiwayFinance.getActiveDebtActionPlan({
+		capacityOverride: window.FlexiwayFinance.getDebtPaymentCapacity(),
+		targetMonthsOverride: window.FlexiwayFinance.getDebtTargetMonths()
+	});
 	const history = window.FlexiwayFinance.getMovementHistory();
 	const currentMonth = new Date().toISOString().slice(0, 7);
 	const paymentCountThisMonth = history.filter((entry) => entry.kind === "pago" && String(entry.date || "").slice(0, 7) === currentMonth).length;
@@ -60,14 +63,18 @@ function renderDashboardPage() {
 
 	const debtCapacity = document.getElementById("dashboardDebtCapacity");
 	if (debtCapacity) {
-		debtCapacity.textContent = data.debtPaymentCapacity > 0 ? formatter(data.debtPaymentCapacity) : "No definida";
+		debtCapacity.textContent = data.debtPaymentCapacity > 0
+			? `${formatter(data.debtPaymentCapacity)}${data.debtTargetMonths > 0 ? ` · Meta ${data.debtTargetMonths} meses` : ""}`
+			: "No definida";
 	}
 
 	const debtProjection = document.getElementById("dashboardDebtProjection");
 	if (debtProjection) {
 		debtProjection.textContent = activePlan?.projectedMonths
-			? `Salida estimada: ${activePlan.projectedMonths} meses si sostienes ese ritmo.`
-			: "Define un monto mensual para estimar salida de deuda.";
+			? `Salida estimada: ${activePlan.projectedMonths} meses si sostienes ${formatter(activePlan.capacity)} al mes.`
+			: activePlan?.requiredMonthlyBudget > 0
+				? `Para cumplir tu meta necesitas ${formatter(activePlan.requiredMonthlyBudget)} al mes.`
+				: "Define modo, monto y plazo para estimar salida de deuda.";
 	}
 
 	const lastMovementElement = document.getElementById("dashboardLastMovement");
@@ -80,5 +87,11 @@ function renderDashboardPage() {
 	window.FlexiwayFinance.renderBudgetChart(data);
 }
 
-document.addEventListener("DOMContentLoaded", renderDashboardPage);
+document.addEventListener("DOMContentLoaded", async () => {
+	if (window.FlexiwayFinance?.ensureSessionReady) {
+		await window.FlexiwayFinance.ensureSessionReady();
+	}
+	renderDashboardPage();
+});
 window.addEventListener("flexiway:data-updated", renderDashboardPage);
+window.addEventListener("flexiway:session-changed", renderDashboardPage);

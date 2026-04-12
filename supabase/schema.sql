@@ -8,7 +8,9 @@ create table if not exists public.user_profiles (
   possible_savings numeric not null default 0,
   debts numeric not null default 0,
   debt_payment_capacity numeric not null default 0,
+  debt_target_months integer not null default 0,
   debt_strategy_mode text not null default 'medium',
+  debt_plan_favorites jsonb not null default '[]'::jsonb,
   updated_at timestamptz not null default timezone('utc', now())
 );
 
@@ -46,7 +48,9 @@ create table if not exists public.finance_item_payments (
 );
 
 alter table public.user_profiles add column if not exists debt_payment_capacity numeric not null default 0;
+alter table public.user_profiles add column if not exists debt_target_months integer not null default 0;
 alter table public.user_profiles add column if not exists debt_strategy_mode text not null default 'medium';
+alter table public.user_profiles add column if not exists debt_plan_favorites jsonb not null default '[]'::jsonb;
 alter table public.finance_items add column if not exists item_key text;
 alter table public.finance_items add column if not exists original_amount numeric not null default 0;
 alter table public.finance_items add column if not exists minimum_payment numeric not null default 0;
@@ -56,10 +60,12 @@ alter table public.finance_item_payments add column if not exists payment_key te
 
 create index if not exists finance_items_user_id_idx on public.finance_items(user_id);
 create index if not exists finance_items_category_idx on public.finance_items(category);
-create unique index if not exists finance_items_user_item_key_idx on public.finance_items(user_id, item_key) where item_key is not null;
+drop index if exists public.finance_items_user_item_key_idx;
+create unique index if not exists finance_items_user_item_key_idx on public.finance_items(user_id, item_key);
 create index if not exists finance_item_payments_user_id_idx on public.finance_item_payments(user_id);
 create index if not exists finance_item_payments_item_key_idx on public.finance_item_payments(item_key);
-create unique index if not exists finance_item_payments_user_payment_key_idx on public.finance_item_payments(user_id, payment_key) where payment_key is not null;
+drop index if exists public.finance_item_payments_user_payment_key_idx;
+create unique index if not exists finance_item_payments_user_payment_key_idx on public.finance_item_payments(user_id, payment_key);
 
 alter table public.user_profiles enable row level security;
 alter table public.finance_items enable row level security;

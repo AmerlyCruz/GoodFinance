@@ -91,54 +91,75 @@
   </section>
 
   <script src="app/supabase-config.js"></script>
+  <script src="app/finance-session.js"></script>
+  <script src="app/finance-sync.js"></script>
   <script src="app/finance.js"></script>
   <script src="app/alerts.js"></script>
   <script src="template/layout.js"></script>
   <script>
     async function renderProfilePage() {
       const finance = window.FlexiwayFinance;
-      if (finance && typeof finance.ensureSessionReady === 'function') {
-        await finance.ensureSessionReady();
-      }
-      const user = finance.getCurrentUser();
-      const data = finance.getFinancialData();
-      const currency = finance.getCurrencyConfig();
-      const activePlan = finance.getActiveDebtActionPlan();
-      document.getElementById('profileName').textContent = user ? user.name : 'Perfil sin sesion';
-      document.getElementById('profileEmail').textContent = user ? user.email : 'Puedes crear una cuenta o iniciar sesion desde el panel de perfil.';
-      document.getElementById('currencySelect').value = currency.currency;
-      document.getElementById('debtStrategySelect').value = finance.getDebtStrategyMode();
-
-      const summary = `
-        <p><strong>Ingresos:</strong> ${finance.formatCurrency(data.income)}</p>
-        <p><strong>Gastos:</strong> ${finance.formatCurrency(data.spent)}</p>
-        <p><strong>Presupuesto:</strong> ${finance.formatCurrency(data.budget)}</p>
-        <p><strong>Ahorro posible:</strong> ${finance.formatCurrency(data.possibleSavings)}</p>
-        <p><strong>Moneda activa:</strong> ${currency.currency}</p>
-        <p><strong>Modo de deuda:</strong> ${activePlan.label}</p>
-      `;
-      document.getElementById('profileFinancialSummary').innerHTML = summary;
-
-      const nextDue = data.nextDueAccount ? `${data.nextDueAccount.name} en ${data.nextDueAccount.dueInDays} dias.` : 'Sin vencimientos registrados.';
-      document.getElementById('profileState').innerHTML = `
-        <p><strong>Proximo vencimiento:</strong> ${nextDue}</p>
-        <p><strong>Uso del presupuesto:</strong> ${finance.formatPercent(finance.generateDashboardData(data).budgetUsage)}</p>
-        <p><strong>Prioridad actual:</strong> ${activePlan.focusAccount ? `${activePlan.focusAccount.name} con ${finance.formatCurrency(activePlan.focusAccount.recommendedPayment)}` : 'Sin prioridad activa.'}</p>
-        <p><strong>Estado actual:</strong> los indicadores se actualizan con los datos registrados.</p>
-      `;
-
+      const nameNode = document.getElementById('profileName');
+      const emailNode = document.getElementById('profileEmail');
+      const summaryNode = document.getElementById('profileFinancialSummary');
+      const stateNode = document.getElementById('profileState');
       const actions = document.getElementById('profileActions');
-      if (user) {
-        actions.innerHTML = `
-          <a href="edit-profile.html" class="primary">Editar finanzas</a>
-          <a href="registrar-gastos.html" class="secondary">Registrar movimientos</a>
-          <button id="logoutProfile" class="secondary">Cerrar sesion</button>
+      const currencySelect = document.getElementById('currencySelect');
+      const debtStrategySelect = document.getElementById('debtStrategySelect');
+
+      try {
+        if (finance && typeof finance.ensureSessionReady === 'function') {
+          await finance.ensureSessionReady();
+        }
+        const user = finance.getCurrentUser();
+        const data = finance.getFinancialData();
+        const currency = finance.getCurrencyConfig();
+        const activePlan = finance.getActiveDebtActionPlan();
+
+        nameNode.textContent = user ? user.name : 'Perfil sin sesion';
+        emailNode.textContent = user ? user.email : 'Puedes crear una cuenta o iniciar sesion desde el panel de perfil.';
+        currencySelect.value = currency.currency;
+        debtStrategySelect.value = finance.getDebtStrategyMode();
+
+        summaryNode.innerHTML = `
+          <p><strong>Ingresos:</strong> ${finance.formatCurrency(data.income)}</p>
+          <p><strong>Gastos:</strong> ${finance.formatCurrency(data.spent)}</p>
+          <p><strong>Presupuesto:</strong> ${finance.formatCurrency(data.budget)}</p>
+          <p><strong>Ahorro posible:</strong> ${finance.formatCurrency(data.possibleSavings)}</p>
+          <p><strong>Moneda activa:</strong> ${currency.currency}</p>
+          <p><strong>Modo de deuda:</strong> ${activePlan.label}</p>
         `;
-        document.getElementById('logoutProfile').onclick = async () => {
-          await finance.logoutUser();
-          window.location.href = 'index.html';
-        };
-      } else {
+
+        const nextDue = data.nextDueAccount ? `${data.nextDueAccount.name} en ${data.nextDueAccount.dueInDays} dias.` : 'Sin vencimientos registrados.';
+        stateNode.innerHTML = `
+          <p><strong>Proximo vencimiento:</strong> ${nextDue}</p>
+          <p><strong>Uso del presupuesto:</strong> ${finance.formatPercent(finance.generateDashboardData(data).budgetUsage)}</p>
+          <p><strong>Prioridad actual:</strong> ${activePlan.focusAccount ? `${activePlan.focusAccount.name} con ${finance.formatCurrency(activePlan.focusAccount.recommendedPayment)}` : 'Sin prioridad activa.'}</p>
+          <p><strong>Estado actual:</strong> los indicadores se actualizan con los datos registrados.</p>
+        `;
+
+        if (user) {
+          actions.innerHTML = `
+            <a href="edit-profile.html" class="primary">Editar finanzas</a>
+            <a href="registrar-gastos.html" class="secondary">Registrar movimientos</a>
+            <button id="logoutProfile" class="secondary">Cerrar sesion</button>
+          `;
+          document.getElementById('logoutProfile').onclick = async () => {
+            await finance.logoutUser();
+            window.location.href = 'index.html';
+          };
+        } else {
+          actions.innerHTML = `
+            <a href="login.html" class="primary">Iniciar sesion</a>
+            <a href="signup.html" class="secondary">Crear cuenta</a>
+          `;
+        }
+      } catch (error) {
+        console.error('No se pudo renderizar la pagina de perfil.', error);
+        nameNode.textContent = 'Perfil temporalmente no disponible';
+        emailNode.textContent = 'Hubo un problema cargando tu sesion o tus datos.';
+        summaryNode.innerHTML = '<p>No fue posible cargar el resumen financiero.</p>';
+        stateNode.innerHTML = '<p>Intenta iniciar sesion de nuevo o recargar la pagina.</p>';
         actions.innerHTML = `
           <a href="login.html" class="primary">Iniciar sesion</a>
           <a href="signup.html" class="secondary">Crear cuenta</a>
@@ -148,12 +169,17 @@
 
     document.getElementById('currencyForm').addEventListener('submit', function(event) {
       event.preventDefault();
-      const currency = document.getElementById('currencySelect').value;
-      const debtStrategyMode = document.getElementById('debtStrategySelect').value;
-      window.FlexiwayFinance.saveCurrencyPreference(currency);
-      window.FlexiwayFinance.saveDebtStrategyMode(debtStrategyMode);
-      renderProfilePage();
-      window.showSuccess('Preferencias actualizadas.');
+      try {
+        const currency = document.getElementById('currencySelect').value;
+        const debtStrategyMode = document.getElementById('debtStrategySelect').value;
+        window.FlexiwayFinance.saveCurrencyPreference(currency);
+        window.FlexiwayFinance.saveDebtStrategyMode(debtStrategyMode);
+        renderProfilePage();
+        window.showSuccess('Preferencias actualizadas.');
+      } catch (error) {
+        console.error('No se pudieron guardar las preferencias.', error);
+        window.showError('No se pudieron guardar las preferencias.');
+      }
     });
 
     document.addEventListener('DOMContentLoaded', renderProfilePage);

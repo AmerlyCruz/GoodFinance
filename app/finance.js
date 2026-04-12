@@ -7,6 +7,7 @@ const FlexiwayFinance = (() => {
 		debts: "deudas",
 		custom: "customCats",
 		financialData: "financialData",
+		syncMeta: "syncMeta",
 		user: "flexiwayUser",
 		session: "flexiwaySession",
 		rememberedLogin: "flexiwayRememberedLogin"
@@ -42,13 +43,19 @@ const FlexiwayFinance = (() => {
 		libraryPromise: null,
 		clientPromise: null,
 		syncTimeout: null,
+		syncRetryTimeout: null,
+		syncAttempt: 0,
 		hydrationPromise: null,
 		initPromise: Promise.resolve(),
+		pendingLocalChanges: false,
+		lastSessionKey: "",
+		lastBudgetChartKey: "",
 		syncStatus: {
 			state: "idle",
 			message: "Listo",
 			updatedAt: new Date().toISOString()
 		},
+		lastSyncDiagnostic: null,
 		statusTimeout: null
 	};
 
@@ -105,6 +112,27 @@ const FlexiwayFinance = (() => {
 		writeJSON(scopedKey, value);
 		return true;
 	}
+
+	const sessionTools = typeof window.FlexiwayCreateSessionTools === "function"
+		? window.FlexiwayCreateSessionTools({
+			backendState,
+			STORAGE_KEYS,
+			readJSON,
+			writeJSON,
+			isBackendConfigured
+		})
+		: null;
+
+	const syncTools = typeof window.FlexiwayCreateSyncTools === "function"
+		? window.FlexiwayCreateSyncTools({
+			backendState,
+			STORAGE_KEYS,
+			readFinanceJSON,
+			writeFinanceJSON,
+			getPersistRemoteState: () => persistRemoteState,
+			isBackendConfigured
+		})
+		: null;
 
 	function toNumber(value) {
 		const parsed = Number(value);
@@ -209,9 +237,163 @@ const FlexiwayFinance = (() => {
 		return readFinanceJSON(STORAGE_KEYS.financialData, {}) || {};
 	}
 
+	function normalizeDebtPlanFavorites(value) {
+		if (!Array.isArray(value)) return [];
+		return value
+			.filter((item) => item && typeof item === "object")
+			.map((item, index) => ({
+				id: String(item.id || `favorite-${index + 1}`),
+				label: String(item.label || "Simulacion guardada"),
+				mode: normalizeDebtStrategyMode(item.mode),
+				capacity: Math.max(toNumber(item.capacity), 0),
+				targetMonths: Math.max(Math.round(toNumber(item.targetMonths)), 0),
+				scope: ["global", "single", "duo"].includes(String(item.scope || "").toLowerCase()) ? String(item.scope).toLowerCase() : "global",
+				focusTargetIds: normalizeFocusTargetIds(item.focusTargetIds || item.focusTargetId),
+				createdAt: item.createdAt || new Date().toISOString()
+			}))
+			.slice(0, 8);
+	}
+
+	function getDebtPlanFavorites() {
+		return normalizeDebtPlanFavorites(getStoredFinancialData().debtPlanFavorites);
+	}
+
+	function writeFinancialStatePatch(patch) {
+		const current = getStoredFinancialData();
+		writeFinanceJSON(STORAGE_KEYS.financialData, {
+			...current,
+			...patch
+		});
+		markLocalChangesPending();
+		dispatchDataUpdate();
+	}
+
+	function saveDebtPlanFavorite(favorite) {
+		const normalizedFavorite = normalizeDebtPlanFavorites([{ 
+			id: favorite?.id || createStableId("favorite"),
+			label: favorite?.label,
+			mode: favorite?.mode,
+			capacity: favorite?.capacity,
+			targetMonths: favorite?.targetMonths,
+			scope: favorite?.scope,
+			focusTargetIds: favorite?.focusTargetIds || favorite?.focusTargetId,
+			createdAt: favorite?.createdAt || new Date().toISOString()
+		}])[0];
+		const favorites = getDebtPlanFavorites().filter((item) => item.id !== normalizedFavorite.id);
+		favorites.unshift(normalizedFavorite);
+		writeFinancialStatePatch({ debtPlanFavorites: favorites.slice(0, 8) });
+		return getDebtPlanFavorites();
+	}
+
+	function removeDebtPlanFavorite(favoriteId) {
+		const favorites = getDebtPlanFavorites().filter((item) => item.id !== String(favoriteId || ""));
+		writeFinancialStatePatch({ debtPlanFavorites: favorites });
+		return favorites;
+	}
+
 	function getCurrencyPreference() {
 		const stored = getStoredFinancialData();
 		return normalizeCurrency(stored.currency);
+	}
+
+	function getMonthlyInterestRate(rate) {
+		return Math.max(toNumber(rate), 0) / 1200;
+	}
+
+	function calculateRequiredMonthlyPayment(balance, annualRate, months, minimumPayment) {
+		const normalizedBalance = Math.max(toNumber(balance), 0);
+		const normalizedMonths = Math.max(Math.round(toNumber(months)), 0);
+		const normalizedMinimum = Math.max(toNumber(minimumPayment), 0);
+		if (normalizedBalance <= 0 || normalizedMonths <= 0) return 0;
+		const monthlyRate = getMonthlyInterestRate(annualRate);
+		let payment = normalizedBalance / normalizedMonths;
+		if (monthlyRate > 0) {
+			const denominator = 1 - Math.pow(1 + monthlyRate, -normalizedMonths);
+			payment = denominator > 0 ? (normalizedBalance * monthlyRate) / denominator : normalizedBalance / normalizedMonths;
+		}
+		return Math.min(normalizedBalance, Math.max(Math.ceil(payment), normalizedMinimum));
+	}
+
+	function buildMonthlyDebtAllocation(accounts, monthlyBudget, mode, targetMonths) {
+		const orderedAccounts = [...(accounts || [])].sort((left, right) => compareAccountsForPlan(mode, left, right));
+		let remainingBudget = Math.max(toNumber(monthlyBudget), 0);
+		const allocations = orderedAccounts.map((account) => ({
+			id: account.id,
+			payment: 0,
+			requiredPayment: calculateRequiredMonthlyPayment(account.amount, account.rate, targetMonths, account.minimumPayment)
+		}));
+		const allocationById = new Map(allocations.map((item) => [item.id, item]));
+
+		for (const account of orderedAccounts) {
+			if (remainingBudget <= 0) break;
+			const basePayment = Math.min(account.amount, Math.max(account.minimumPayment, 0));
+			const applied = Math.min(basePayment, remainingBudget);
+			allocationById.get(account.id).payment += applied;
+			remainingBudget -= applied;
+		}
+
+		for (const account of orderedAccounts) {
+			if (remainingBudget <= 0) break;
+			const current = allocationById.get(account.id);
+			const desiredExtra = Math.max(current.requiredPayment - current.payment, 0);
+			if (desiredExtra <= 0) continue;
+			const headroom = Math.max(account.amount - current.payment, 0);
+			const applied = Math.min(desiredExtra, headroom, remainingBudget);
+			current.payment += applied;
+			remainingBudget -= applied;
+		}
+
+		for (const account of orderedAccounts) {
+			if (remainingBudget <= 0) break;
+			const current = allocationById.get(account.id);
+			const headroom = Math.max(account.amount - current.payment, 0);
+			if (headroom <= 0) continue;
+			const applied = Math.min(headroom, remainingBudget);
+			current.payment += applied;
+			remainingBudget -= applied;
+		}
+
+		return orderedAccounts.map((account) => ({
+			...account,
+			recommendedPayment: Math.max(Math.round(toNumber(allocationById.get(account.id)?.payment)), 0),
+			requiredPaymentForGoal: Math.max(Math.round(toNumber(allocationById.get(account.id)?.requiredPayment)), 0)
+		}));
+	}
+
+	function simulateDebtPayoffMonths(accounts, monthlyBudget, mode) {
+		const budget = Math.max(toNumber(monthlyBudget), 0);
+		if (budget <= 0 || !Array.isArray(accounts) || accounts.length === 0) return null;
+		const workingAccounts = accounts.map((account) => ({
+			id: account.id,
+			name: account.name,
+			amount: Math.max(toNumber(account.amount), 0),
+			minimumPayment: Math.max(toNumber(account.minimumPayment), 0),
+			rate: Math.max(toNumber(account.rate), 0),
+			dueInDays: account.dueInDays,
+			createdAt: account.createdAt
+		}));
+		for (let month = 1; month <= 600; month += 1) {
+			workingAccounts.forEach((account) => {
+				if (account.amount <= 0) return;
+				const monthlyRate = getMonthlyInterestRate(account.rate);
+				if (monthlyRate > 0) {
+					account.amount += account.amount * monthlyRate;
+				}
+			});
+			const allocations = buildMonthlyDebtAllocation(workingAccounts.filter((account) => account.amount > 0), budget, mode, 0);
+			if (allocations.length === 0) return null;
+			let totalPaidThisMonth = 0;
+			allocations.forEach((allocation) => {
+				const target = workingAccounts.find((account) => account.id === allocation.id);
+				if (!target) return;
+				const applied = Math.min(target.amount, allocation.recommendedPayment);
+				target.amount = Math.max(target.amount - applied, 0);
+				totalPaidThisMonth += applied;
+			});
+			if (workingAccounts.every((account) => account.amount <= 1)) return month;
+			if (totalPaidThisMonth <= 0) return null;
+		}
+		return null;
 	}
 
 	function getCurrencyConfig() {
@@ -235,26 +417,55 @@ const FlexiwayFinance = (() => {
 		return `${toNumber(value).toFixed(1)}%`;
 	}
 
-	function updateSyncStatus(state, message, options) {
-		backendState.syncStatus = {
-			state: state || "idle",
-			message: String(message || "Listo"),
-			updatedAt: new Date().toISOString()
-		};
-		window.dispatchEvent(new CustomEvent("flexiway:sync-status", {
-			detail: backendState.syncStatus
-		}));
-		window.clearTimeout(backendState.statusTimeout);
-		if (options && options.autoReset) {
-			backendState.statusTimeout = window.setTimeout(() => {
-				updateSyncStatus(options.resetState || "idle", options.resetMessage || "Listo");
-			}, options.autoReset);
-		}
-		return backendState.syncStatus;
+	const updateSyncStatus = syncTools ? syncTools.updateSyncStatus : () => backendState.syncStatus;
+	const getSyncStatus = syncTools ? syncTools.getSyncStatus : () => ({ ...backendState.syncStatus });
+	const setSyncDiagnostic = syncTools ? syncTools.setSyncDiagnostic : () => null;
+	const getSyncDiagnostics = syncTools ? syncTools.getSyncDiagnostics : () => null;
+	const getSyncMeta = syncTools ? syncTools.getSyncMeta : () => ({});
+	const writeSyncMeta = syncTools ? syncTools.writeSyncMeta : () => undefined;
+	const markLocalChangesPending = syncTools ? syncTools.markLocalChangesPending : () => undefined;
+	const markSyncRetryPending = syncTools ? syncTools.markSyncRetryPending : () => undefined;
+	const clearPendingLocalChanges = syncTools ? syncTools.clearPendingLocalChanges : () => undefined;
+
+	function normalizeFocusTargetIds(value) {
+		const values = Array.isArray(value) ? value : value ? [value] : [];
+		return Array.from(new Set(values.map((item) => String(item || "").trim()).filter(Boolean)));
 	}
 
-	function getSyncStatus() {
-		return { ...backendState.syncStatus };
+	function getDebtPriorityInsight(account, mode) {
+		const drivers = [];
+		let score = 0;
+		if (account.dueInDays !== null && account.dueInDays <= 7) {
+			drivers.push(`vence en ${Math.max(account.dueInDays, 0)} dias`);
+			score += 35;
+		}
+		if (account.rate > 0) {
+			drivers.push(`tasa ${account.rate.toFixed(1)}%`);
+			score += Math.min(account.rate, 35);
+		}
+		if (mode === "regular") {
+			if (account.amount <= 25000) {
+				drivers.push("saldo corto para cerrarla rapido");
+				score += 22;
+			}
+		} else if (mode === "aggressive") {
+			if (account.amount >= 25000) {
+				drivers.push("saldo alto que conviene bajar fuerte");
+				score += 16;
+			}
+		} else {
+			drivers.push("mezcla urgencia, costo y monto");
+			score += 12;
+		}
+		if (drivers.length === 0) {
+			drivers.push("se prioriza por orden natural del plan");
+			score += 10;
+		}
+		return {
+			score: Math.round(score),
+			summary: drivers.join(", "),
+			drivers
+		};
 	}
 
 	function sanitizePaymentHistory(history, itemId) {
@@ -306,7 +517,10 @@ const FlexiwayFinance = (() => {
 		const shouldDispatch = !options || options.dispatch !== false;
 		const payload = normalizeCollectionForStorage(storageKey, Array.isArray(items) ? items : []);
 		const written = writeFinanceJSON(storageKey, payload);
-		if (written && shouldDispatch) dispatchDataUpdate();
+		if (written && shouldDispatch) {
+			markLocalChangesPending();
+			dispatchDataUpdate();
+		}
 		return written;
 	}
 
@@ -364,6 +578,7 @@ const FlexiwayFinance = (() => {
 			getCollection(meta.storageKey).forEach((item, index) => {
 				const normalized = normalizeCreditItem(category, item, index);
 				accounts.push({
+					id: normalized.id,
 					category,
 					storageKey: meta.storageKey,
 					index,
@@ -400,12 +615,29 @@ const FlexiwayFinance = (() => {
 			...current,
 			debtPaymentCapacity: Math.max(toNumber(amount), 0)
 		});
+		markLocalChangesPending();
 		dispatchDataUpdate();
 		return Math.max(toNumber(amount), 0);
 	}
 
 	function getDebtPaymentCapacity() {
 		return Math.max(toNumber(getStoredFinancialData().debtPaymentCapacity), 0);
+	}
+
+	function saveDebtTargetMonths(months) {
+		const current = getStoredFinancialData();
+		const normalizedMonths = Math.max(Math.round(toNumber(months)), 0);
+		writeFinanceJSON(STORAGE_KEYS.financialData, {
+			...current,
+			debtTargetMonths: normalizedMonths
+		});
+		markLocalChangesPending();
+		dispatchDataUpdate();
+		return normalizedMonths;
+	}
+
+	function getDebtTargetMonths() {
+		return Math.max(Math.round(toNumber(getStoredFinancialData().debtTargetMonths)), 0);
 	}
 
 	function getDebtStrategyMode() {
@@ -419,6 +651,7 @@ const FlexiwayFinance = (() => {
 			...current,
 			debtStrategyMode: normalizedMode
 		});
+		markLocalChangesPending();
 		dispatchDataUpdate();
 		return normalizedMode;
 	}
@@ -585,6 +818,7 @@ const FlexiwayFinance = (() => {
 			possibleSavings,
 			debts: debtLoad,
 			debtPaymentCapacity: Math.max(toNumber(stored.debtPaymentCapacity), 0),
+			debtTargetMonths: Math.max(Math.round(toNumber(stored.debtTargetMonths)), 0),
 			debtStrategyMode: normalizeDebtStrategyMode(stored.debtStrategyMode),
 			income,
 			nextDueAccount: nextDue,
@@ -596,67 +830,44 @@ const FlexiwayFinance = (() => {
 		return readJSON(STORAGE_KEYS.user, null);
 	}
 
+	const buildStoredUserProfile = sessionTools ? sessionTools.buildStoredUserProfile : (user) => user;
+	const notifySessionChange = sessionTools ? sessionTools.notifySessionChange : () => undefined;
+	const clearStoredSession = sessionTools ? sessionTools.clearStoredSession : () => undefined;
+	const writeStoredSession = sessionTools ? sessionTools.writeStoredSession : () => undefined;
 	function saveSessionCache(user) {
-		if (!user) {
-			localStorage.removeItem(STORAGE_KEYS.session);
-			if (isBackendConfigured()) {
-				localStorage.removeItem(STORAGE_KEYS.user);
-			}
-			window.dispatchEvent(new CustomEvent("flexiway:session-changed"));
+		if (sessionTools) {
+			sessionTools.saveSessionCache(user);
 			return;
 		}
-
-		const profile = {
-			id: user.id || user.user_id || null,
-			name: user.name || user.user_metadata?.name || user.email?.split("@")[0] || "Usuario",
-			email: user.email || ""
-		};
-		const existing = readJSON(STORAGE_KEYS.user, null);
-		const mergedProfile = existing && existing.email === profile.email
-			? { ...existing, ...profile }
-			: profile;
-
-		writeJSON(STORAGE_KEYS.user, mergedProfile);
-		writeJSON(STORAGE_KEYS.session, {
-			email: mergedProfile.email,
-			userId: mergedProfile.id,
-			loggedAt: new Date().toISOString()
-		});
-		window.dispatchEvent(new CustomEvent("flexiway:session-changed"));
+		if (!user) {
+			clearStoredSession();
+			return;
+		}
+		writeStoredSession(buildStoredUserProfile(user));
 	}
 
 	function getCurrentUser() {
-		const session = readJSON(STORAGE_KEYS.session, null);
-		const user = getRegisteredUser();
-		if (!session || !user) return null;
-		if (session.email && user.email && session.email !== user.email) return null;
-		return user;
+		return sessionTools ? sessionTools.getCurrentUser(getRegisteredUser) : null;
 	}
 
 	function getRememberedLogin() {
-		const stored = readJSON(STORAGE_KEYS.rememberedLogin, null);
-		if (!stored || typeof stored !== "object") return null;
-		return {
-			email: String(stored.email || "").trim(),
-			password: String(stored.password || ""),
-			enabled: Boolean(stored.enabled && stored.email)
-		};
+		return sessionTools ? sessionTools.getRememberedLogin() : null;
 	}
 
 	function saveRememberedLogin(email, password, enabled) {
-		if (!enabled) {
-			localStorage.removeItem(STORAGE_KEYS.rememberedLogin);
-			return null;
-		}
+		return sessionTools ? sessionTools.saveRememberedLogin(email, password, enabled) : null;
+	}
 
-		const payload = {
-			email: String(email || "").trim().toLowerCase(),
-			password: String(password || ""),
-			enabled: true,
-			updatedAt: new Date().toISOString()
-		};
-		writeJSON(STORAGE_KEYS.rememberedLogin, payload);
-		return payload;
+	async function finalizeBackendAuthentication(user, syncFailureMessage) {
+		saveSessionCache(user);
+		try {
+			await hydrateRemoteState();
+		} catch (hydrateError) {
+			setSyncDiagnostic(hydrateError, "auth-hydration", syncFailureMessage);
+			console.error(syncFailureMessage, hydrateError);
+			updateSyncStatus("error", syncFailureMessage);
+		}
+		return { ok: true, user: getCurrentUser() };
 	}
 
 	function getStorageSnapshot() {
@@ -769,7 +980,9 @@ const FlexiwayFinance = (() => {
 				possibleSavings: toNumber(profileRow?.possible_savings),
 				debts: toNumber(profileRow?.debts),
 				debtPaymentCapacity: toNumber(profileRow?.debt_payment_capacity),
+				debtTargetMonths: Math.max(Math.round(toNumber(profileRow?.debt_target_months)), 0),
 				debtStrategyMode: normalizeDebtStrategyMode(profileRow?.debt_strategy_mode),
+				debtPlanFavorites: normalizeDebtPlanFavorites(profileRow?.debt_plan_favorites),
 				currency: normalizeCurrency(profileRow?.currency)
 			}
 		};
@@ -804,7 +1017,7 @@ const FlexiwayFinance = (() => {
 		if (!snapshot) return false;
 		const hasItems = Object.keys(CATEGORY_STORAGE_MAP).some((category) => (snapshot[category] || []).length > 0);
 		const financialData = snapshot.financialData || {};
-		const hasFinancialState = ["budget", "creditDueInDays", "possibleSavings", "debts", "debtPaymentCapacity"]
+		const hasFinancialState = ["budget", "creditDueInDays", "possibleSavings", "debts", "debtPaymentCapacity", "debtTargetMonths"]
 			.some((key) => toNumber(financialData[key]) > 0);
 		const hasStrategyState = normalizeDebtStrategyMode(financialData.debtStrategyMode) !== "medium";
 		return hasItems || hasFinancialState || hasStrategyState;
@@ -814,28 +1027,26 @@ const FlexiwayFinance = (() => {
 		let result = await client.from("user_profiles").upsert(payload, { onConflict: "user_id" });
 		if (!result.error) return result;
 
-		if (/(debt_payment_capacity|debt_strategy_mode)/i.test(String(result.error.message || ""))) {
+		if (/(debt_payment_capacity|debt_target_months|debt_strategy_mode|debt_plan_favorites)/i.test(String(result.error.message || ""))) {
 			const legacyPayload = { ...payload };
 			delete legacyPayload.debt_payment_capacity;
+			delete legacyPayload.debt_target_months;
 			delete legacyPayload.debt_strategy_mode;
+			delete legacyPayload.debt_plan_favorites;
 			result = await client.from("user_profiles").upsert(legacyPayload, { onConflict: "user_id" });
 		}
 
 		return result;
 	}
 
-	function buildInFilter(values) {
-		return `(${values.map((value) => `"${String(value).replace(/"/g, '\\"')}"`).join(",")})`;
-	}
-
-	async function deleteRemoteKeys(client, table, userId, column, keys) {
-		if (keys.length === 0) {
-			return client.from(table).delete().eq("user_id", userId);
-		}
-		return client.from(table).delete().eq("user_id", userId).not(column, "in", buildInFilter(keys));
-	}
+	const isReplaceStrategyError = syncTools ? syncTools.isReplaceStrategyError : () => false;
+	const replaceRemoteRows = syncTools ? syncTools.replaceRemoteRows : async () => ({ error: null });
+	const deleteRemoteKeys = syncTools ? syncTools.deleteRemoteKeys : async () => ({ error: null });
 
 	async function syncRemoteFinanceItems(client, userId, itemRows) {
+		if (itemRows.length === 0) {
+			return client.from("finance_items").delete().eq("user_id", userId);
+		}
 		const itemKeys = itemRows.map((row) => row.item_key).filter(Boolean);
 		let result = await client.from("finance_items").upsert(itemRows, { onConflict: "user_id,item_key" });
 		if (!result.error) {
@@ -843,20 +1054,27 @@ const FlexiwayFinance = (() => {
 			return deleteResult.error || result.error ? (deleteResult.error ? deleteResult : result) : result;
 		}
 
-		if (/(item_key|original_amount|minimum_payment|paid_amount|status)/i.test(String(result.error.message || ""))) {
-			await client.from("finance_items").delete().eq("user_id", userId);
+		const errorMessage = String(result.error.message || "");
+		const requiresLegacyColumns = /(item_key|original_amount|minimum_payment|paid_amount|status)/i.test(errorMessage);
+		const requiresReplaceStrategy = isReplaceStrategyError(errorMessage);
+		if (requiresLegacyColumns || requiresReplaceStrategy) {
+			if (requiresReplaceStrategy && !requiresLegacyColumns) {
+				result = await replaceRemoteRows(client, "finance_items", userId, itemRows);
+				return result;
+			}
 			const legacyRows = itemRows.map(({ item_key, original_amount, minimum_payment, paid_amount, status, ...rest }) => rest);
-			result = legacyRows.length > 0 ? await client.from("finance_items").insert(legacyRows) : { error: null };
+			result = await replaceRemoteRows(client, "finance_items", userId, legacyRows);
 		}
 
 		return result;
 	}
 
 	async function syncRemotePaymentRows(client, userId, paymentRows) {
+		if (paymentRows.length === 0) {
+			return client.from("finance_item_payments").delete().eq("user_id", userId);
+		}
 		const paymentKeys = paymentRows.map((row) => row.payment_key).filter(Boolean);
-		let result = paymentRows.length > 0
-			? await client.from("finance_item_payments").upsert(paymentRows, { onConflict: "user_id,payment_key" })
-			: { error: null };
+		let result = await client.from("finance_item_payments").upsert(paymentRows, { onConflict: "user_id,payment_key" });
 		if (!result.error) {
 			const deleteResult = await deleteRemoteKeys(client, "finance_item_payments", userId, "payment_key", paymentKeys);
 			if (deleteResult.error) {
@@ -866,14 +1084,19 @@ const FlexiwayFinance = (() => {
 			return result;
 		}
 
-		if (/payment_key/i.test(String(result.error.message || ""))) {
-			const deleteResult = await client.from("finance_item_payments").delete().eq("user_id", userId);
-			if (deleteResult.error) {
-				console.warn("No se pudo sincronizar la tabla de pagos en Supabase.", deleteResult.error);
-				return deleteResult;
+		const errorMessage = String(result.error.message || "");
+		const requiresLegacyColumns = /payment_key/i.test(errorMessage);
+		const requiresReplaceStrategy = isReplaceStrategyError(errorMessage);
+		if (requiresLegacyColumns || requiresReplaceStrategy) {
+			if (requiresReplaceStrategy && !requiresLegacyColumns) {
+				result = await replaceRemoteRows(client, "finance_item_payments", userId, paymentRows);
+				if (result.error) {
+					console.warn("No se pudieron sincronizar los pagos en Supabase.", result.error);
+				}
+				return result;
 			}
 			const legacyRows = paymentRows.map(({ payment_key, ...rest }) => rest);
-			result = legacyRows.length > 0 ? await client.from("finance_item_payments").insert(legacyRows) : { error: null };
+			result = await replaceRemoteRows(client, "finance_item_payments", userId, legacyRows);
 		}
 		if (result.error) {
 			console.warn("No se pudieron sincronizar los pagos en Supabase.", result.error);
@@ -918,8 +1141,17 @@ const FlexiwayFinance = (() => {
 
 			const snapshot = buildRemoteSnapshot(profileRow, itemRows, paymentRows);
 			const localSnapshot = getStorageSnapshot();
+			const syncMeta = getSyncMeta();
+			backendState.pendingLocalChanges = Boolean(syncMeta.pendingLocalChanges);
+			backendState.syncAttempt = Math.max(toNumber(syncMeta.retryCount), 0);
 			const remoteHasMeaningfulState = hasMeaningfulSnapshot(snapshot);
 			const localHasMeaningfulState = hasMeaningfulSnapshot(localSnapshot);
+			if (backendState.pendingLocalChanges && localHasMeaningfulState) {
+				window.dispatchEvent(new CustomEvent("flexiway:data-updated", { detail: getFinancialData() }));
+				updateSyncStatus("pending", "Guardado local pendiente de sincronizar");
+				scheduleRemoteSync();
+				return localSnapshot;
+			}
 			if (localHasMeaningfulState && !remoteHasMeaningfulState) {
 				updateSyncStatus("syncing", "Sincronizando datos locales...");
 				await persistRemoteState();
@@ -936,6 +1168,7 @@ const FlexiwayFinance = (() => {
 		try {
 			return await backendState.hydrationPromise;
 		} catch (error) {
+			setSyncDiagnostic(error, "hydrateRemoteState", "No se pudo hidratar el estado desde Supabase.");
 			updateSyncStatus("error", "Error al cargar datos");
 			throw error;
 		} finally {
@@ -951,6 +1184,7 @@ const FlexiwayFinance = (() => {
 		const { data: authData } = await client.auth.getUser();
 		const authUser = authData?.user;
 		if (!authUser) return;
+		window.clearTimeout(backendState.syncRetryTimeout);
 		updateSyncStatus("syncing", "Guardando cambios...");
 
 		const snapshot = getStorageSnapshot();
@@ -965,7 +1199,9 @@ const FlexiwayFinance = (() => {
 			possible_savings: toNumber(financialData.possibleSavings),
 			debts: toNumber(financialData.debts),
 			debt_payment_capacity: toNumber(financialData.debtPaymentCapacity),
+			debt_target_months: Math.max(Math.round(toNumber(financialData.debtTargetMonths)), 0),
 			debt_strategy_mode: normalizeDebtStrategyMode(financialData.debtStrategyMode),
+			debt_plan_favorites: normalizeDebtPlanFavorites(financialData.debtPlanFavorites),
 			updated_at: new Date().toISOString()
 		});
 		if (profileResult.error) throw profileResult.error;
@@ -985,22 +1221,12 @@ const FlexiwayFinance = (() => {
 		if (itemInsertResult.error) throw itemInsertResult.error;
 		const paymentResult = await syncRemotePaymentRows(client, authUser.id, paymentRows);
 		if (paymentResult.error) throw paymentResult.error;
+		clearPendingLocalChanges();
 		updateSyncStatus("synced", "Cambios guardados", { autoReset: 2000 });
 	}
 
-	function scheduleRemoteSync() {
-		if (!isBackendConfigured()) {
-			updateSyncStatus("local", "Modo local");
-			return;
-		}
-		window.clearTimeout(backendState.syncTimeout);
-		backendState.syncTimeout = window.setTimeout(() => {
-			persistRemoteState().catch((error) => {
-				updateSyncStatus("error", "No se pudo sincronizar");
-				console.error("No se pudo sincronizar con Supabase.", error);
-			});
-		}, 500);
-	}
+	const scheduleRemoteSync = syncTools ? syncTools.scheduleRemoteSync : () => undefined;
+	const handleSyncFailure = syncTools ? syncTools.handleSyncFailure : () => undefined;
 
 	function saveFinancialData(data) {
 		const current = getStoredFinancialData();
@@ -1010,10 +1236,13 @@ const FlexiwayFinance = (() => {
 			creditDueInDays: toNumber(data.creditDueInDays),
 			possibleSavings: toNumber(data.possibleSavings),
 			debts: toNumber(data.debts),
+			debtTargetMonths: Math.max(Math.round(toNumber(data.debtTargetMonths || current.debtTargetMonths)), 0),
 			debtStrategyMode: normalizeDebtStrategyMode(data.debtStrategyMode || current.debtStrategyMode),
+			debtPlanFavorites: normalizeDebtPlanFavorites(data.debtPlanFavorites || current.debtPlanFavorites),
 			currency: normalizeCurrency(data.currency || current.currency)
 		};
 		writeFinanceJSON(STORAGE_KEYS.financialData, payload);
+		markLocalChangesPending();
 		dispatchDataUpdate();
 		return getFinancialData();
 	}
@@ -1024,6 +1253,7 @@ const FlexiwayFinance = (() => {
 			...current,
 			currency: normalizeCurrency(currency)
 		});
+		markLocalChangesPending();
 		dispatchDataUpdate();
 		return getCurrencyPreference();
 	}
@@ -1055,17 +1285,35 @@ const FlexiwayFinance = (() => {
 		if (!canvas || typeof Chart === "undefined") return;
 		const source = data || getFinancialData();
 		const metrics = generateDashboardData(source);
-		const chartData = [metrics.totalSpent, metrics.possibleSavings, metrics.debts, metrics.remainingBudget];
+		const breakdown = getExpenseBreakdown().filter((item) => toNumber(item.total) > 0);
+		const labels = breakdown.map((item) => item.label);
+		const values = breakdown.map((item) => item.total);
+		const colors = breakdown.map((item) => item.color);
+		if (metrics.remainingBudget > 0) {
+			labels.push("Disponible");
+			values.push(metrics.remainingBudget);
+			colors.push("#c7ceea");
+		}
+		if (labels.length === 0 && source.income > 0) {
+			labels.push("Disponible");
+			values.push(source.income);
+			colors.push("#c7ceea");
+		}
+		const chartKey = JSON.stringify({ labels, values, colors });
+		if (backendState.lastBudgetChartKey === chartKey && budgetChartInstance) {
+			return;
+		}
+		backendState.lastBudgetChartKey = chartKey;
 
 		if (budgetChartInstance) budgetChartInstance.destroy();
 
 		budgetChartInstance = new Chart(canvas, {
 			type: "doughnut",
 			data: {
-				labels: ["Gastos", "Ahorro posible", "Deudas", "Disponible"],
+				labels,
 				datasets: [{
-					data: chartData,
-					backgroundColor: ["#ffd6e0", "#b5ead7", "#f4a261", "#c7ceea"],
+					data: values,
+					backgroundColor: colors,
 					borderWidth: 0
 				}]
 			},
@@ -1202,8 +1450,11 @@ const FlexiwayFinance = (() => {
 		return suggestions;
 	}
 
-	function getDebtActionPlan(mode, capacityOverride) {
+	function getDebtActionPlan(mode, options) {
 		const normalizedMode = normalizeDebtStrategyMode(mode);
+		const configOptions = options && typeof options === "object"
+			? options
+			: { capacityOverride: options };
 		const modeMeta = {
 			regular: {
 				label: "Regular",
@@ -1226,71 +1477,101 @@ const FlexiwayFinance = (() => {
 		};
 
 		const config = modeMeta[normalizedMode] || modeMeta.medium;
-		const accounts = getCreditAccounts()
+		const focusTargetIds = normalizeFocusTargetIds(configOptions.focusTargetIds || configOptions.focusTargetId);
+		const allAccounts = getCreditAccounts()
 			.filter((account) => account.amount > 0)
 			.sort((left, right) => compareAccountsForPlan(normalizedMode, left, right));
+		const accounts = focusTargetIds.length > 0
+			? allAccounts.filter((account) => focusTargetIds.includes(account.id))
+			: allAccounts;
+		const ignoredAccounts = focusTargetIds.length > 0
+			? allAccounts.filter((account) => !focusTargetIds.includes(account.id))
+			: [];
 		const storedCapacity = getDebtPaymentCapacity();
-		const availableBase = Math.max(toNumber(capacityOverride), 0) || storedCapacity || Math.max(getFinancialData().possibleSavings, 0);
-		const capacity = Math.max(availableBase, 0);
+		const storedTargetMonths = getDebtTargetMonths();
+		const selectedCapacity = Math.max(toNumber(configOptions.capacityOverride), 0) || storedCapacity;
+		const targetMonths = Math.max(Math.round(toNumber(configOptions.targetMonthsOverride)), 0) || storedTargetMonths;
+		const capacity = Math.max(selectedCapacity, 0);
 		const totalDebt = accounts.reduce((total, account) => total + account.amount, 0);
 		const totalMinimum = accounts.reduce((total, account) => total + account.minimumPayment, 0);
-		let remaining = capacity;
+		const requiredMonthlyBudget = targetMonths > 0 && totalDebt > 0
+			? accounts.reduce((total, account) => total + calculateRequiredMonthlyPayment(account.amount, account.rate, targetMonths, account.minimumPayment), 0)
+			: 0;
+		const canRecommend = capacity > 0 && targetMonths > 0;
+		const planningCapacity = canRecommend ? capacity : 0;
+		const monthlyAllocations = canRecommend ? buildMonthlyDebtAllocation(accounts, planningCapacity, normalizedMode, targetMonths) : [];
+		const allocationLookup = new Map(monthlyAllocations.map((account) => [account.id, account]));
 		const allocations = accounts.map((account, index) => {
-			const basePayment = Math.min(account.amount, account.minimumPayment > 0 ? account.minimumPayment : index === 0 ? Math.min(account.amount, capacity) : 0);
-			const assigned = Math.min(basePayment, remaining);
-			remaining = Math.max(remaining - assigned, 0);
+			const priorityInsight = getDebtPriorityInsight(account, normalizedMode);
+			const monthlyAllocation = allocationLookup.get(account.id);
 			return {
 				...account,
-				recommendedPayment: assigned,
+				recommendedPayment: canRecommend ? Math.min(account.amount, Math.max(toNumber(monthlyAllocation?.recommendedPayment), 0)) : 0,
+				requiredPaymentForGoal: targetMonths > 0 ? calculateRequiredMonthlyPayment(account.amount, account.rate, targetMonths, account.minimumPayment) : 0,
+				priorityScore: priorityInsight.score,
+				prioritySummary: priorityInsight.summary,
+				priorityDrivers: priorityInsight.drivers,
 				rationale: index === 0
-					? `Objetivo principal por ${config.strategy.toLowerCase()}.`
+					? `Objetivo principal por ${config.strategy.toLowerCase()} porque ${priorityInsight.summary}.`
 					: account.minimumPayment > 0
 						? "Mantener pago minimo para no caer en atraso."
 						: "Monitorear, sin asignacion inicial en este plan."
 			};
 		});
 
-		for (let index = 0; index < allocations.length && remaining > 0; index += 1) {
-			const account = allocations[index];
-			const headroom = Math.max(account.amount - account.recommendedPayment, 0);
-			if (headroom <= 0) continue;
-			const extra = Math.min(headroom, remaining);
-			account.recommendedPayment += extra;
-			if (extra > 0 && index === 0) {
-				account.rationale = `${account.rationale} Todo el excedente cae aqui para bajar saldo mas rapido.`;
-			}
-			remaining -= extra;
-		}
-
-		const projectedMonths = capacity > 0 ? Math.ceil(totalDebt / capacity) : null;
-		const focusAccount = allocations[0] || null;
+		const projectedMonths = canRecommend ? simulateDebtPayoffMonths(accounts, capacity, normalizedMode) : null;
+		const focusAccount = canRecommend ? allocations[0] || null : null;
+		const nextAccount = canRecommend ? allocations[1] || null : null;
+		const acceleratedAccounts = allocations.filter((account) => account.recommendedPayment > Math.max(account.minimumPayment, 0));
+		const parallelAccounts = canRecommend ? acceleratedAccounts.slice(0, 2) : [];
+		const attackSequence = canRecommend
+			? allocations.slice(0, 3).map((account, index) => ({
+				step: index + 1,
+				name: account.name,
+				payment: account.recommendedPayment,
+				remainingAmount: account.amount,
+				reason: account.rationale
+			}))
+			: [];
 		const warnings = [];
 		if (accounts.length === 0) warnings.push("No hay deudas activas para planificar.");
+		if (focusTargetIds.length === 1 && ignoredAccounts.length > 0) warnings.push("Esta simulacion esta enfocada en una deuda puntual. Las demas quedan fuera del calculo principal.");
+		if (focusTargetIds.length >= 2 && ignoredAccounts.length > 0) warnings.push("Esta simulacion solo mezcla las deudas objetivo seleccionadas. El resto queda fuera del calculo principal.");
 		if (capacity <= 0) warnings.push("Registra tu capacidad mensual de abono para generar un plan accionable.");
+		if (targetMonths <= 0) warnings.push("Define en cuantos meses quieres terminar tu deuda para calcular un plan real.");
 		if (capacity > 0 && totalMinimum > capacity) warnings.push("Tu capacidad no cubre todos los pagos minimos. Ajusta gastos antes de acelerar la deuda objetivo.");
+		if (targetMonths > 0 && requiredMonthlyBudget > capacity) warnings.push(`Para salir en ${targetMonths} meses necesitas al menos ${formatCurrency(requiredMonthlyBudget)} al mes.`);
 
 		return {
 			mode: normalizedMode,
 			label: config.label,
 			description: config.description,
 			strategy: config.strategy,
+			focusTargetId: focusTargetIds[0] || "",
+			focusTargetIds,
+			scope: focusTargetIds.length >= 2 ? "duo" : focusTargetIds.length === 1 ? "single" : "global",
 			capacity,
+			targetMonths,
+			requiredMonthlyBudget,
 			totalDebt,
 			totalMinimum,
 			projectedMonths,
 			focusAccount,
+			nextAccount,
+			parallelAccounts,
+			attackSequence,
 			allocations,
 			warnings,
 			expenseCuts: getExpenseReductionSuggestions()
 		};
 	}
 
-	function getDebtActionPlans(capacityOverride) {
-		return DEBT_STRATEGY_MODES.map((mode) => getDebtActionPlan(mode, capacityOverride));
+	function getDebtActionPlans(options) {
+		return DEBT_STRATEGY_MODES.map((mode) => getDebtActionPlan(mode, options));
 	}
 
-	function getActiveDebtActionPlan(capacityOverride) {
-		return getDebtActionPlan(getDebtStrategyMode(), capacityOverride);
+	function getActiveDebtActionPlan(options) {
+		return getDebtActionPlan(getDebtStrategyMode(), options);
 	}
 
 	function getMovementHistory() {
@@ -1371,13 +1652,20 @@ const FlexiwayFinance = (() => {
 			});
 
 			if (error) {
+				setSyncDiagnostic(error, "signUpUser", "Error devuelto por Supabase Auth durante el registro.");
 				updateSyncStatus("error", "No se pudo crear la cuenta");
 				return { ok: false, message: error.message };
 			}
 
 			if (data?.user) {
-				saveSessionCache({ ...data.user, name: payload.name });
-				await hydrateRemoteState();
+				const authResult = await finalizeBackendAuthentication(
+					{ ...data.user, name: payload.name },
+					"Cuenta creada. La sincronizacion inicial fallo."
+				);
+				return {
+					...authResult,
+					requiresEmailConfirmation: !data?.session
+				};
 			}
 
 			return {
@@ -1402,12 +1690,11 @@ const FlexiwayFinance = (() => {
 			});
 
 			if (error) {
+				setSyncDiagnostic(error, "loginUser", "Error devuelto por Supabase Auth durante el inicio de sesion.");
 				updateSyncStatus("error", "No se pudo iniciar sesion");
 				return { ok: false, message: error.message };
 			}
-			saveSessionCache(data?.user);
-			await hydrateRemoteState();
-			return { ok: true, user: getCurrentUser() };
+			return finalizeBackendAuthentication(data?.user, "Sesion iniciada. No se pudo cargar todo desde Supabase.");
 		}
 
 		const user = getRegisteredUser();
@@ -1431,6 +1718,9 @@ const FlexiwayFinance = (() => {
 	}
 
 	function dispatchDataUpdate() {
+		if (isBackendConfigured() && backendState.pendingLocalChanges) {
+			updateSyncStatus("pending", "Cambios guardados en este dispositivo");
+		}
 		scheduleRemoteSync();
 		window.dispatchEvent(new CustomEvent("flexiway:data-updated", {
 			detail: getFinancialData()
@@ -1450,10 +1740,14 @@ const FlexiwayFinance = (() => {
 		const client = await getSupabaseClient();
 		if (!client) return;
 
-		client.auth.onAuthStateChange((_event, session) => {
+		client.auth.onAuthStateChange((event, session) => {
+			if (event === "TOKEN_REFRESHED") return;
+			if (event === "PASSWORD_RECOVERY") return;
 			if (session?.user) {
 				saveSessionCache(session.user);
-				hydrateRemoteState().catch((error) => console.error(error));
+				if (event !== "INITIAL_SESSION") {
+					hydrateRemoteState().catch((error) => console.error(error));
+				}
 			} else {
 				saveSessionCache(null);
 			}
@@ -1463,6 +1757,7 @@ const FlexiwayFinance = (() => {
 	}
 
 	backendState.initPromise = initBackendSession().catch((error) => {
+		setSyncDiagnostic(error, "initBackendSession", "Fallo la inicializacion de Supabase al cargar la app.");
 		console.error("No se pudo inicializar Supabase.", error);
 	});
 
@@ -1473,6 +1768,7 @@ const FlexiwayFinance = (() => {
 		formatCurrency,
 		formatPercent,
 		getSyncStatus,
+		getSyncDiagnostics,
 		getCurrencyPreference,
 		getCurrencyConfig,
 		saveCurrencyPreference,
@@ -1494,6 +1790,11 @@ const FlexiwayFinance = (() => {
 		getCreditAccounts,
 		getDebtPaymentCapacity,
 		saveDebtPaymentCapacity,
+		getDebtTargetMonths,
+		saveDebtTargetMonths,
+		getDebtPlanFavorites,
+		saveDebtPlanFavorite,
+		removeDebtPlanFavorite,
 		recordDebtPayment,
 		markDebtAsPaid,
 		getDebtActionPlan,

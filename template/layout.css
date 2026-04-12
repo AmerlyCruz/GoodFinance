@@ -33,6 +33,7 @@
 	left: -320px;
 	width: 320px;
 	height: 100%;
+	box-sizing: border-box;
 	background: #ffffff;
 	box-shadow: 4px 0 20px rgba(0, 0, 0, 0.08);
 	transition: left 0.3s ease, opacity 0.3s ease, visibility 0.3s ease;
@@ -127,6 +128,7 @@
 	right: -380px;
 	width: 380px;
 	height: 100%;
+	box-sizing: border-box;
 	background: #ffffff;
 	box-shadow: -4px 0 20px rgba(0, 0, 0, 0.08);
 	transition: right 0.3s ease, opacity 0.3s ease, visibility 0.3s ease;
@@ -255,10 +257,18 @@
 
 .app-sync-status.loading,
 .app-sync-status.auth,
-.app-sync-status.syncing {
+.app-sync-status.syncing,
+.app-sync-status.pending,
+.app-sync-status.retrying {
 	background: rgba(255, 243, 205, 0.98);
 	border-color: rgba(138, 91, 0, 0.24);
 	color: #855600;
+}
+
+.app-sync-status.retrying {
+	background: rgba(255, 238, 214, 0.98);
+	border-color: rgba(180, 106, 0, 0.28);
+	color: #9a5b00;
 }
 
 .app-sync-status.synced,
@@ -282,6 +292,7 @@
 	right: -380px;
 	width: 380px;
 	height: 100%;
+	box-sizing: border-box;
 	background: white;
 	box-shadow: -4px 0 20px rgba(0, 0, 0, 0.08);
 	transition: right 0.3s ease, opacity 0.3s ease, visibility 0.3s ease;

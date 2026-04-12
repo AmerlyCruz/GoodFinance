@@ -22,11 +22,28 @@
     .grid { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 24px; }
     .panel-card h2 { margin-top: 0; font-family: 'Cormorant Garamond', serif; font-size: 2rem; }
     #analysisEmptyState { margin-top: 16px; padding: 16px; border-radius: 14px; background: #fff; }
-    .summary-list { display: grid; gap: 14px; }
-    .summary-item { display: flex; justify-content: space-between; gap: 16px; padding: 14px 0; border-bottom: 1px solid rgba(58,44,42,0.08); }
-    .summary-item:last-child { border-bottom: none; padding-bottom: 0; }
-    .summary-item small { display: block; margin-top: 4px; color: #6f5a58; }
+    .analysis-stack { display: grid; gap: 18px; }
+    .compact-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .compact-card { background: #fff; border-radius: 16px; padding: 16px; border: 1px solid rgba(217,122,138,0.14); box-shadow: 0 6px 18px rgba(233,166,178,0.08); }
+    .compact-label { color: #8f6170; font-size: 0.92rem; margin-bottom: 8px; }
+    .compact-value { font-size: 1.1rem; font-weight: 700; }
+    .compact-copy { display: block; margin-top: 6px; color: #6f5a58; font-size: 0.92rem; }
+    .analysis-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+    .analysis-btn { border: none; border-radius: 999px; padding: 11px 15px; font: inherit; font-weight: 700; cursor: pointer; }
+    .analysis-btn.primary { background: #d97a8a; color: #fff; }
+    .analysis-btn.secondary { background: #fff1f3; color: #9b3f55; }
+    .analysis-drawer { position: fixed; top: 0; right: -420px; width: min(420px, 100vw); height: 100vh; box-sizing: border-box; background: #fffaf7; box-shadow: -10px 0 30px rgba(58,44,42,0.18); z-index: 1201; transition: right 0.3s ease; padding: 24px; overflow-y: auto; }
+    .analysis-drawer.active { right: 0; }
+    .analysis-overlay { position: fixed; inset: 0; background: rgba(58,44,42,0.38); z-index: 1200; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; }
+    .analysis-overlay.active { opacity: 1; pointer-events: auto; }
+    .drawer-close { border: none; background: none; font-size: 1.4rem; cursor: pointer; color: #9b3f55; position: absolute; top: 16px; right: 18px; }
+    .drawer-block { margin-top: 18px; }
+    .drawer-block h3 { margin: 0 0 10px; font-size: 1.1rem; }
+    .drawer-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+    .drawer-list li { background: #fff; border-radius: 14px; padding: 12px 14px; border: 1px solid rgba(217,122,138,0.12); }
+    .drawer-list small { display: block; margin-top: 4px; color: #6f5a58; }
     @media (max-width: 900px) { .kpi-row, .grid { grid-template-columns: 1fr; } }
+    @media (max-width: 700px) { .compact-grid { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
@@ -76,18 +93,48 @@
       </article>
       <article class="panel-card">
         <h2>Que deberias mirar</h2>
-        <div class="summary-list">
-          <div class="summary-item"><span>Deuda a atacar</span><strong id="analysisFocusDebt">Sin prioridad activa</strong></div>
-          <div class="summary-item"><span>Avance de pagos</span><strong id="analysisPaymentProgress">0% liquidado</strong><small id="analysisPaymentDetail">Todavia no hay abonos registrados.</small></div>
-          <div class="summary-item"><span>Presion mensual</span><strong id="analysisDebtPressure">Sin capacidad definida</strong><small id="analysisDebtPressureDetail">Define tu abono mensual en Creditos para proyectar salida.</small></div>
-          <div class="summary-item"><span>Recorte sugerido</span><strong id="analysisExpenseCut">Sigue registrando movimientos</strong></div>
+        <div class="analysis-stack">
+          <div class="compact-grid">
+            <div class="compact-card">
+              <div class="compact-label">Deuda a atacar</div>
+              <div class="compact-value" id="analysisFocusDebt">Sin prioridad activa</div>
+              <small class="compact-copy" id="analysisPlanMode">Todavia no hay una estrategia aplicada.</small>
+            </div>
+            <div class="compact-card">
+              <div class="compact-label">Avance de pagos</div>
+              <div class="compact-value" id="analysisPaymentProgress">0% liquidado</div>
+              <small class="compact-copy" id="analysisPaymentDetail">Todavia no hay abonos registrados.</small>
+            </div>
+            <div class="compact-card">
+              <div class="compact-label">Presion mensual</div>
+              <div class="compact-value" id="analysisDebtPressure">Sin capacidad definida</div>
+              <small class="compact-copy" id="analysisDebtPressureDetail">Define tu abono mensual en Creditos para proyectar salida.</small>
+            </div>
+            <div class="compact-card">
+              <div class="compact-label">Recorte sugerido</div>
+              <div class="compact-value" id="analysisExpenseCut">Sigue registrando movimientos</div>
+              <small class="compact-copy" id="analysisExpenseCutDetail">La app te mostrara oportunidades para liberar efectivo.</small>
+            </div>
+          </div>
+          <div class="analysis-actions">
+            <button id="openAnalysisPlan" class="analysis-btn primary" type="button">Ver plan sugerido</button>
+            <a href="credit.html" class="analysis-btn secondary" style="text-decoration:none;display:inline-flex;align-items:center;">Abrir creditos</a>
+          </div>
         </div>
       </article>
     </div>
   </section>
 
+  <aside id="analysisPlanDrawer" class="analysis-drawer" aria-hidden="true">
+    <button id="closeAnalysisPlan" class="drawer-close" aria-label="Cerrar detalles">×</button>
+    <div id="analysisPlanContent"></div>
+  </aside>
+  <div id="analysisPlanOverlay" class="analysis-overlay"></div>
+
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="app/supabase-config.js"></script>
+  <script src="app/finance-session.js"></script>
+  <script src="app/finance-sync.js"></script>
   <script src="app/finance.js"></script>
   <script src="app/alerts.js"></script>
   <script src="template/layout.js"></script>
